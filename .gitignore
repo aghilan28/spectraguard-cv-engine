@@ -64,3 +64,7 @@ models/weights/
 # Logs
 logs/
 *.log
+
+# Phase 7.5 Large Datasets and Production Binaries
+datasets/
+data/models/releases/**/*.joblib
