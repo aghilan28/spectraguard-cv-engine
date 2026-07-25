@@ -1,74 +1,31 @@
 ﻿# Environments
-.env
-.venv
-env/
+.venv/
 venv/
-ENV/
-env.bak/
-venv.bak/
+env/
+.env
 
 # Python
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Node
-node_modules/
-npm-debug.log
-yarn-error.log
-.pnp
-.pnp.js
-.next/
-out/
-
-# Testing & Coverage
-.coverage
-htmlcov/
-.tox/
-.nox/
+*.pyc
 .pytest_cache/
-coverage/
+.ruff_cache/
 
-# IDE & OS
-.vscode/
-.idea/
-*.swp
-*.swo
-.DS_Store
-Thumbs.db
-
-# Models & OpenCV Cache
-*.onnx
-*.pt
-*.pth
-.cv2_cache/
-models/weights/
-
-# Logs
-logs/
-*.log
-
-# Phase 7.5 Large Datasets and Production Binaries
+# Datasets & Large Binaries (R23)
+data/
 datasets/
-data/models/releases/**/*.joblib
+*.mp4
+*.avi
+*.mov
+*.jpg
+*.jpeg
+*.png
+*.tif
+*.tiff
 
-# Phase 7.5 Large Datasets and Production Binaries
-datasets/
-data/models/releases/**/*.joblib
+# Model Artifacts
+*.h5
+*.pkl
+*.model
+*.json
+models/
+checkpoints/
