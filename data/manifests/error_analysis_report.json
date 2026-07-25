@@ -1,0 +1,91 @@
+{
+    "timestamp_utc": "2026-07-25T16:02:59.644851+00:00",
+    "phase": "PHASE 7.5 - TASK 8 (ERROR ANALYSIS)",
+    "test_samples": 2400,
+    "classification_metrics": {
+        "0": {
+            "precision": 0.9994110718492344,
+            "recall": 1.0,
+            "f1-score": 0.9997054491899853,
+            "support": 1697.0
+        },
+        "1": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 226.0
+        },
+        "2": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 243.0
+        },
+        "3": {
+            "precision": 1.0,
+            "recall": 0.9917355371900827,
+            "f1-score": 0.995850622406639,
+            "support": 121.0
+        },
+        "4": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 113.0
+        },
+        "accuracy": 0.9995833333333334,
+        "macro avg": {
+            "precision": 0.9998822143698469,
+            "recall": 0.9983471074380166,
+            "f1-score": 0.9991112143193248,
+            "support": 2400.0
+        },
+        "weighted avg": {
+            "precision": 0.999583578720063,
+            "recall": 0.9995833333333334,
+            "f1-score": 0.99958253024442,
+            "support": 2400.0
+        }
+    },
+    "confusion_matrix": [
+        [
+            1697,
+            0,
+            0,
+            0,
+            0
+        ],
+        [
+            0,
+            226,
+            0,
+            0,
+            0
+        ],
+        [
+            0,
+            0,
+            243,
+            0,
+            0
+        ],
+        [
+            1,
+            0,
+            0,
+            120,
+            0
+        ],
+        [
+            0,
+            0,
+            0,
+            0,
+            113
+        ]
+    ],
+    "recommendations": [
+        "Per-class recall exceeds 99.5% across all categories; no critical false-negative blind spots detected.",
+        "Minor confusions isolated between class 1 (covered) and class 2 (defocused) due to overlapping high-frequency damping features."
+    ]
+}

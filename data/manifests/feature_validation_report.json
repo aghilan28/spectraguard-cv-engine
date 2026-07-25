@@ -1,0 +1,27 @@
+{
+    "timestamp_utc": "2026-07-25T15:58:42.858775+00:00",
+    "phase": "PHASE 7.5 - TASK 5 (FEATURE VALIDATION)",
+    "feature_validation_results": [
+        {
+            "file": "datasets\\core\\uhctd\\raw\\uhctd_features.csv",
+            "schema_status": "PASS",
+            "missing_columns": [],
+            "all_features_finite": true,
+            "total_records": 12000
+        },
+        {
+            "file": "datasets\\raw_self_collected\\forensic_10k\\forensic_features.csv",
+            "schema_status": "PASS",
+            "missing_columns": [],
+            "all_features_finite": true,
+            "total_records": 2000
+        },
+        {
+            "file": "datasets\\synthetic\\synthetic_augmented_features.csv",
+            "schema_status": "PASS",
+            "missing_columns": [],
+            "all_features_finite": true,
+            "total_records": 12000
+        }
+    ]
+}

@@ -1,0 +1,51 @@
+{
+    "timestamp_utc": "2026-07-25T16:00:09.410399+00:00",
+    "phase": "PHASE 7.5 - TASK 6 (BASELINE TRAINING)",
+    "evaluation_metric": "Macro F1 (5-Fold Stratified CV)",
+    "model_results": {
+        "LogisticRegression_Baseline": {
+            "mean_macro_f1": 0.998,
+            "std_macro_f1": 0.0018,
+            "cv_scores": [
+                0.9995,
+                0.9985,
+                1.0,
+                0.9958,
+                0.9959
+            ]
+        },
+        "RandomForest_Primary": {
+            "mean_macro_f1": 0.9995,
+            "std_macro_f1": 0.0005,
+            "cv_scores": [
+                0.9995,
+                0.9995,
+                1.0,
+                0.9986,
+                1.0
+            ]
+        },
+        "ExtraTrees_Validator": {
+            "mean_macro_f1": 0.9996,
+            "std_macro_f1": 0.0004,
+            "cv_scores": [
+                0.9995,
+                1.0,
+                1.0,
+                0.9991,
+                0.9991
+            ]
+        },
+        "XGBoost_Challenger": {
+            "mean_macro_f1": 0.9994,
+            "std_macro_f1": 0.0005,
+            "cv_scores": [
+                1.0,
+                0.9995,
+                0.9995,
+                0.9986,
+                0.9991
+            ]
+        }
+    }
+}

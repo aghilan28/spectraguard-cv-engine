@@ -1,0 +1,70 @@
+{
+    "timestamp_utc": "2026-07-25T15:51:43.591791+00:00",
+    "phase": "PHASE 7.5 - TASK 2",
+    "datasets_validated": [
+        {
+            "file": "datasets\\core\\uhctd\\raw\\uhctd_features.csv",
+            "status": "PASS",
+            "rows": 12000,
+            "columns": 14,
+            "null_values_present": false,
+            "null_breakdown": {
+                "label": 0,
+                "d_hfer_median": 0,
+                "d_rpss_median": 0,
+                "spectral_flatness": 0,
+                "block_dct_mean": 0,
+                "block_dct_var": 0,
+                "block_dct_max": 0,
+                "optical_flow_disp": 0,
+                "immerkaer_sigma": 0,
+                "p_hash_match": 0,
+                "noise_autocorr_peak": 0,
+                "diurnal_mismatch": 0,
+                "tenengrad_focus": 0,
+                "lbp_texture_dist": 0
+            },
+            "duplicate_rows": 0,
+            "unique_classes": 5,
+            "class_distribution": {
+                "0": 8483,
+                "2": 1215,
+                "1": 1130,
+                "3": 607,
+                "4": 565
+            }
+        },
+        {
+            "file": "datasets\\raw_self_collected\\forensic_10k\\forensic_features.csv",
+            "status": "PASS",
+            "rows": 2000,
+            "columns": 14,
+            "null_values_present": false,
+            "null_breakdown": {
+                "label": 0,
+                "d_hfer_median": 0,
+                "d_rpss_median": 0,
+                "spectral_flatness": 0,
+                "block_dct_mean": 0,
+                "block_dct_var": 0,
+                "block_dct_max": 0,
+                "optical_flow_disp": 0,
+                "immerkaer_sigma": 0,
+                "p_hash_match": 0,
+                "noise_autocorr_peak": 0,
+                "diurnal_mismatch": 0,
+                "tenengrad_focus": 0,
+                "lbp_texture_dist": 0
+            },
+            "duplicate_rows": 0,
+            "unique_classes": 5,
+            "class_distribution": {
+                "0": 1196,
+                "4": 208,
+                "3": 206,
+                "1": 197,
+                "2": 193
+            }
+        }
+    ]
+}

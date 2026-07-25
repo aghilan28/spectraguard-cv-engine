@@ -1,0 +1,29 @@
+{
+    "timestamp_utc": "2026-07-25T16:03:43.030051+00:00",
+    "phase": "PHASE 7.5 - TASK 9 (PRODUCTION FREEZE)",
+    "model_type": "RandomForestClassifier",
+    "hyperparameters": {
+        "n_estimators": 200,
+        "min_samples_split": 5,
+        "min_samples_leaf": 4,
+        "max_depth": 20,
+        "class_weight": "balanced"
+    },
+    "feature_count": 13,
+    "features": [
+        "d_hfer_median",
+        "d_rpss_median",
+        "spectral_flatness",
+        "block_dct_mean",
+        "block_dct_var",
+        "block_dct_max",
+        "optical_flow_disp",
+        "immerkaer_sigma",
+        "p_hash_match",
+        "noise_autocorr_peak",
+        "diurnal_mismatch",
+        "tenengrad_focus",
+        "lbp_texture_dist"
+    ],
+    "release_version": "v0.7.5-production-model"
+}
