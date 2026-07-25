@@ -7,6 +7,7 @@ from .preprocessing.scaler import FeatureScaler
 from .models.config import TrainingConfig
 from .models.trainer import ModelTrainer
 from .optimization.tuner import HyperparameterTuner
+from .evaluation.evaluator import ModelEvaluator
 
 __all__ = [
     "DatasetLoader",
@@ -17,4 +18,5 @@ __all__ = [
     "TrainingConfig",
     "ModelTrainer",
     "HyperparameterTuner",
+    "ModelEvaluator",
 ]
