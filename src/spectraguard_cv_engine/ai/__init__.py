@@ -10,6 +10,8 @@ from .confidence.models import ConfidenceTier, ConfidenceOutput
 from .confidence.engine import ConfidenceEngine
 from .decision.models import SeverityLevel, DecisionOutput
 from .decision.engine import DecisionEngine
+from .packaging.models import EventEvidence
+from .packaging.packager import EvidencePackager
 
 __all__ = [
     "RuntimeConfig",
@@ -25,4 +27,6 @@ __all__ = [
     "SeverityLevel",
     "DecisionOutput",
     "DecisionEngine",
+    "EventEvidence",
+    "EvidencePackager",
 ]
