@@ -8,6 +8,8 @@ from .explainability.models import ExplanationOutput
 from .explainability.engine import ExplainabilityEngine
 from .confidence.models import ConfidenceTier, ConfidenceOutput
 from .confidence.engine import ConfidenceEngine
+from .decision.models import SeverityLevel, DecisionOutput
+from .decision.engine import DecisionEngine
 
 __all__ = [
     "RuntimeConfig",
@@ -20,4 +22,7 @@ __all__ = [
     "ConfidenceTier",
     "ConfidenceOutput",
     "ConfidenceEngine",
+    "SeverityLevel",
+    "DecisionOutput",
+    "DecisionEngine",
 ]
