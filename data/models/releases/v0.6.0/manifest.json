@@ -1,0 +1,34 @@
+{
+    "version": "v0.6.0",
+    "timestamp_utc": "2026-07-25T15:00:50.513693+00:00",
+    "model_type": "xgboost",
+    "scaling_method": "standard",
+    "features": [
+        "mean_intensity",
+        "variance_intensity",
+        "skewness",
+        "kurtosis",
+        "mean_magnitude",
+        "max_magnitude",
+        "edge_density",
+        "laplacian_variance",
+        "global_contrast",
+        "spectral_energy",
+        "spectral_entropy",
+        "spectral_flatness",
+        "mean_motion",
+        "motion_variance",
+        "temporal_instability"
+    ],
+    "evaluation_metrics": {
+        "accuracy": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1_score": 1.0,
+        "roc_auc": 1.0
+    },
+    "artifacts": {
+        "scaler": "feature_scaler.joblib",
+        "model": "classifier.joblib"
+    }
+}

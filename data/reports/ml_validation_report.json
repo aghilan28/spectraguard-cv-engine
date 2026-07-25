@@ -1,0 +1,35 @@
+{
+  "timestamp": "2026-07-25T15:00:50.516086+00:00",
+  "phase": "PHASE 6",
+  "subsystem": "spectraguard-cv-engine-ml",
+  "validation_report": {
+    "model_type": "xgboost",
+    "metrics": {
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1_score": 1.0,
+      "roc_auc": 1.0
+    },
+    "confusion_matrix": {
+      "matrix": [
+        [
+          500,
+          0
+        ],
+        [
+          0,
+          500
+        ]
+      ],
+      "false_positive_rate": 0.0,
+      "false_negative_rate": 0.0
+    },
+    "performance": {
+      "test_samples": 1000,
+      "total_inference_ms": 2.893900003982708,
+      "avg_inference_ms_per_sample": 0.002893900003982708
+    }
+  },
+  "overall_status": "READY"
+}

@@ -8,6 +8,7 @@ from .models.config import TrainingConfig
 from .models.trainer import ModelTrainer
 from .optimization.tuner import HyperparameterTuner
 from .evaluation.evaluator import ModelEvaluator
+from .export.exporter import ModelExporter
 
 __all__ = [
     "DatasetLoader",
@@ -19,4 +20,5 @@ __all__ = [
     "ModelTrainer",
     "HyperparameterTuner",
     "ModelEvaluator",
+    "ModelExporter",
 ]
