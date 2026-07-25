@@ -6,6 +6,7 @@ from .data.splitter import DatasetSplitter
 from .preprocessing.scaler import FeatureScaler
 from .models.config import TrainingConfig
 from .models.trainer import ModelTrainer
+from .optimization.tuner import HyperparameterTuner
 
 __all__ = [
     "DatasetLoader",
@@ -15,4 +16,5 @@ __all__ = [
     "FeatureScaler",
     "TrainingConfig",
     "ModelTrainer",
+    "HyperparameterTuner",
 ]
