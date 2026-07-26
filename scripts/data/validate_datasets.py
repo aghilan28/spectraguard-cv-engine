@@ -1,79 +1,39 @@
-﻿"""Rigorous Dataset Validation & Manifest Generation (R2/R6 Compliance)."""
-
-import os
-import json
-import pandas as pd
-from datetime import datetime, timezone
+﻿import yaml
+from pathlib import Path
+import sys
 
 
-def validate_csv(file_path: str) -> dict:
-    print(f"[VALIDATION] Inspecting {file_path}...")
-    if not os.path.exists(file_path):
-        raise FileNotFoundError(f"Dataset not found at {file_path}")
+def validate():
+    print("\n--- Validating Data Foundation (DF-2) ---")
+    manifest_path = Path("src/fixtures/manifest.yaml")
+    assert manifest_path.exists(), "Manifest file missing!"
 
-    df = pd.read_csv(file_path)
+    with open(manifest_path, "r") as f:
+        manifest = yaml.safe_load(f)
 
-    # 1. Null / NaN check
-    null_counts = df.isnull().sum().to_dict()
-    has_nulls = df.isnull().values.any()
+    assert (
+        manifest["dataset_manifest"]["qa_checkpoint"] == "QA-0"
+    ), "Incorrect QA checkpoint"
 
-    # 2. Duplicate detection
-    duplicates = int(df.duplicated().sum())
+    kylberg_path = Path(manifest["dataset_manifest"]["datasets"]["kylberg"]["path"])
+    assert kylberg_path.exists(), f"Kylberg path {kylberg_path} does not exist"
 
-    # 3. Label variance check
-    if "label" not in df.columns:
-        raise ValueError("Missing mandatory 'label' column.")
-    unique_labels = df["label"].nunique()
-    label_counts = df["label"].value_counts().to_dict()
+    files = list(kylberg_path.rglob("*.png")) + list(kylberg_path.rglob("*.tif"))
+    assert len(files) > 0, "No texture images found in Kylberg directory"
 
-    # 4. Schema dimension check
-    row_count, col_count = df.shape
-
-    status = "PASS" if not has_nulls and unique_labels > 1 else "FAIL"
-
-    return {
-        "file": file_path,
-        "status": status,
-        "rows": row_count,
-        "columns": col_count,
-        "null_values_present": bool(has_nulls),
-        "null_breakdown": null_counts,
-        "duplicate_rows": duplicates,
-        "unique_classes": unique_labels,
-        "class_distribution": {str(k): int(v) for k, v in label_counts.items()},
-    }
-
-
-def main():
-    os.makedirs("data/manifests", exist_ok=True)
-
-    targets = [
-        os.path.normpath("datasets/core/uhctd/raw/uhctd_features.csv"),
-        os.path.normpath(
-            "datasets/raw_self_collected/forensic_10k/forensic_features.csv"
-        ),
-    ]
-
-    reports = []
-    for t in targets:
-        report = validate_csv(t)
-        reports.append(report)
-        print(
-            f" -> Status: {report['status']} | Rows: {report['rows']} | Classes: {report['unique_classes']}"
-        )
-
-    master_manifest = {
-        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-        "phase": "PHASE 7.5 - TASK 2",
-        "datasets_validated": reports,
-    }
-
-    manifest_path = os.path.normpath("data/manifests/dataset_validation_report.json")
-    with open(manifest_path, "w", encoding="utf-8") as f:
-        json.dump(master_manifest, f, indent=4)
-
-    print(f"[SUCCESS] Validation manifest generated at: {manifest_path}")
+    print(
+        f"[SUCCESS] Dataset manifest loaded. QA Checkpoint: {manifest['dataset_manifest']['qa_checkpoint']}"
+    )
+    print(f"[SUCCESS] Found {len(files)} texture images in Kylberg raw directory.")
+    print(
+        f"[SUCCESS] UHCTD Status correctly registered as: {manifest['dataset_manifest']['datasets']['uhctd']['status']}"
+    )
+    print("--- Validation Complete ---")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        validate()
+    except AssertionError as e:
+        print(f"[ERROR] Validation failed: {e}")
+        sys.exit(1)

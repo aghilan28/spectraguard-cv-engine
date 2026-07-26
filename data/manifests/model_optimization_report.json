@@ -1,12 +1,13 @@
 {
-    "timestamp_utc": "2026-07-25T16:02:00.368777+00:00",
-    "phase": "PHASE 7.5 - TASK 7 (MODEL OPTIMIZATION)",
+    "timestamp_utc": "2026-07-26T07:02:31.971623+00:00",
+    "phase": "MODEL REBUILD - OPTIMIZATION",
     "model": "RandomForest_Primary",
-    "best_cv_macro_f1": 0.9996356179315583,
+    "best_cv_macro_f1": 0.9740467548686725,
     "best_hyperparameters": {
-        "n_estimators": 200,
-        "min_samples_split": 5,
-        "min_samples_leaf": 4,
-        "max_depth": 20
-    }
+        "n_estimators": 150,
+        "min_samples_split": 10,
+        "min_samples_leaf": 1,
+        "max_depth": null
+    },
+    "validation_strategy": "GroupKFold(n_splits=3)"
 }

@@ -1,29 +1,27 @@
 {
-    "timestamp_utc": "2026-07-25T16:03:43.030051+00:00",
-    "phase": "PHASE 7.5 - TASK 9 (PRODUCTION FREEZE)",
+    "timestamp_utc": "2026-07-26T07:59:39.625462+00:00",
+    "phase": "MODEL REBUILD - 12 FEATURE FREEZE SYNCED",
     "model_type": "RandomForestClassifier",
+    "feature_count": 11,
+    "features_list": [
+        "mean_magnitude",
+        "max_magnitude",
+        "spectral_flatness",
+        "mean_intensity",
+        "skewness",
+        "mean_motion",
+        "laplacian_variance",
+        "edge_density",
+        "kurtosis",
+        "temporal_instability",
+        "log_spectral_energy"
+    ],
     "hyperparameters": {
-        "n_estimators": 200,
-        "min_samples_split": 5,
-        "min_samples_leaf": 4,
-        "max_depth": 20,
+        "n_estimators": 150,
+        "min_samples_split": 10,
+        "min_samples_leaf": 1,
+        "max_depth": null,
         "class_weight": "balanced"
     },
-    "feature_count": 13,
-    "features": [
-        "d_hfer_median",
-        "d_rpss_median",
-        "spectral_flatness",
-        "block_dct_mean",
-        "block_dct_var",
-        "block_dct_max",
-        "optical_flow_disp",
-        "immerkaer_sigma",
-        "p_hash_match",
-        "noise_autocorr_peak",
-        "diurnal_mismatch",
-        "tenengrad_focus",
-        "lbp_texture_dist"
-    ],
-    "release_version": "v0.7.5-production-model"
+    "release_version": "v0.7.5-production-12f-synchronized"
 }

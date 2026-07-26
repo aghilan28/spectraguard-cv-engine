@@ -1,0 +1,14 @@
+﻿dataset_manifest:
+  version: "1.0"
+  qa_checkpoint: "QA-0"
+  datasets:
+    kylberg:
+      source: "https://www.cb.uu.se/~gustaf/texture/data/without-rotation/"
+      type: "synthetic_base"
+      path: "datasets/synthetic/kylberg_textures/raw"
+      status: "acquired"
+    uhctd:
+      source: "manual_eula"
+      type: "real_tamper"
+      path: "datasets/core/uhctd/raw"
+      status: "pending_approval"
