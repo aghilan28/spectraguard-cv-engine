@@ -1,13 +1,8 @@
 ﻿import os
-import json
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-import warnings
-
-# Suppress minor matplotlib/seaborn warnings if any leak through
-warnings.filterwarnings('ignore', category=UserWarning)
 
 class VisualizationGenerator:
     def __init__(self, figures_dir: str):
@@ -18,7 +13,7 @@ class VisualizationGenerator:
 
     def generate_all(self, preds_df: pd.DataFrame, eval_json: dict):
         self._plot_confusion_matrix(eval_json["metrics"]["confusion_matrix_raw"])
-        self._plot_curves(eval_json["curves"])
+        self._plot_curves(preds_df)
         self._plot_distributions(preds_df)
         self._plot_accuracies(preds_df)
         self._plot_composition(preds_df)
@@ -28,7 +23,6 @@ class VisualizationGenerator:
         fp, fn = cm_raw["fp"], cm_raw["fn"]
         matrix = np.array([[tn, fp], [fn, tp]])
         
-        # Absolute CM
         plt.figure(figsize=(6, 5))
         sns.heatmap(matrix, annot=True, fmt='d', cmap='Blues', xticklabels=['Original', 'Tampered'], yticklabels=['Original', 'Tampered'])
         plt.title('Confusion Matrix')
@@ -37,11 +31,11 @@ class VisualizationGenerator:
         plt.savefig(os.path.join(self.out_dir, 'confusion_matrix.png'), bbox_inches='tight')
         plt.close()
 
-        # Normalized CM - Safe division to prevent RuntimeWarning
-        row_sums = matrix.sum(axis=1)
-        row_sums_safe = np.where(row_sums == 0, 1, row_sums) 
-        matrix_norm = matrix.astype('float') / row_sums_safe[:, np.newaxis]
-        
+        # Fix: Safe division to prevent RuntimeWarning when a class has 0 samples
+        row_sums = matrix.sum(axis=1)[:, np.newaxis]
+        matrix_norm = np.zeros_like(matrix, dtype=float)
+        np.divide(matrix.astype('float'), row_sums, out=matrix_norm, where=row_sums!=0)
+
         plt.figure(figsize=(6, 5))
         sns.heatmap(matrix_norm, annot=True, fmt='.2f', cmap='Blues', xticklabels=['Original', 'Tampered'], yticklabels=['Original', 'Tampered'])
         plt.title('Normalized Confusion Matrix')
@@ -50,31 +44,52 @@ class VisualizationGenerator:
         plt.savefig(os.path.join(self.out_dir, 'normalized_confusion_matrix.png'), bbox_inches='tight')
         plt.close()
 
-    def _plot_curves(self, curves: dict):
-        roc_pts = curves.get("roc_curve_coordinates", [])
-        if roc_pts:
-            fpr, tpr = zip(*roc_pts)
-            plt.figure(figsize=(6, 5))
-            plt.plot(fpr, tpr, color='darkorange', lw=2, label=f'ROC curve (AUC = {curves.get("roc_auc", 0):.2f})')
-            plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
-            plt.xlabel('False Positive Rate')
-            plt.ylabel('True Positive Rate')
-            plt.title('Receiver Operating Characteristic')
-            plt.legend(loc="lower right")
-            plt.savefig(os.path.join(self.out_dir, 'roc_curve.png'), bbox_inches='tight')
-            plt.close()
+    def _plot_curves(self, df: pd.DataFrame):
+        y_true = df['ground_truth_label'].values
+        y_scores = df['confidence_score'].values
+        
+        thresholds = np.linspace(0.0, 1.0, 100)
+        roc_points = []
+        pr_points = []
+        
+        for t in thresholds:
+            preds = (y_scores >= t).astype(int)
+            tp = np.sum((y_true == 1) & (preds == 1))
+            tn = np.sum((y_true == 0) & (preds == 0))
+            fp = np.sum((y_true == 0) & (preds == 1))
+            fn = np.sum((y_true == 1) & (preds == 0))
+            
+            tpr = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+            fpr = fp / (fp + tn) if (fp + tn) > 0 else 0.0
+            precision = tp / (tp + fp) if (tp + fp) > 0 else 1.0
+            
+            roc_points.append((fpr, tpr))
+            pr_points.append((tpr, precision))
+            
+        roc_points = sorted(roc_points, key=lambda x: x[0])
+        roc_auc = sum(0.5 * (roc_points[i+1][0] - roc_points[i][0]) * (roc_points[i+1][1] + roc_points[i][1]) for i in range(len(roc_points)-1))
+        pr_auc = np.mean([p[1] for p in pr_points])
 
-        pr_pts = curves.get("pr_curve_coordinates", [])
-        if pr_pts:
-            rec, prec = zip(*pr_pts)
-            plt.figure(figsize=(6, 5))
-            plt.plot(rec, prec, color='green', lw=2, label=f'PR curve (AUC = {curves.get("pr_auc", 0):.2f})')
-            plt.xlabel('Recall')
-            plt.ylabel('Precision')
-            plt.title('Precision-Recall Curve')
-            plt.legend(loc="lower left")
-            plt.savefig(os.path.join(self.out_dir, 'precision_recall_curve.png'), bbox_inches='tight')
-            plt.close()
+        plt.figure(figsize=(6, 5))
+        fpr_vals, tpr_vals = zip(*roc_points)
+        plt.plot(fpr_vals, tpr_vals, color='darkorange', lw=2, label=f'ROC curve (AUC = {roc_auc:.4f})')
+        plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.title('Receiver Operating Characteristic (ROC)')
+        plt.legend(loc="lower right")
+        plt.savefig(os.path.join(self.out_dir, 'roc_curve.png'), bbox_inches='tight')
+        plt.close()
+
+        plt.figure(figsize=(6, 5))
+        rec_vals, prec_vals = zip(*pr_points)
+        plt.plot(rec_vals, prec_vals, color='green', lw=2, label=f'PR curve (AUC = {pr_auc:.4f})')
+        plt.xlabel('Recall')
+        plt.ylabel('Precision')
+        plt.title('Precision-Recall Curve')
+        plt.legend(loc="lower left")
+        plt.savefig(os.path.join(self.out_dir, 'precision_recall_curve.png'), bbox_inches='tight')
+        plt.close()
 
     def _plot_distributions(self, df: pd.DataFrame):
         plt.figure(figsize=(10, 5))
@@ -110,7 +125,7 @@ class VisualizationGenerator:
         
         acc_attack = df.groupby('attack_category')['is_correct'].mean().reset_index()
         plt.figure(figsize=(10, 5))
-        # Fixed Seaborn deprecation warning by assigning hue to x variable
+        # Fix: Add hue and legend=False to comply with future Seaborn requirements
         sns.barplot(data=acc_attack, x='attack_category', y='is_correct', hue='attack_category', palette='viridis', legend=False)
         plt.title('Accuracy by Attack Type')
         plt.ylabel('Accuracy')
@@ -121,7 +136,7 @@ class VisualizationGenerator:
 
         acc_scene = df.groupby('source_scene_category')['is_correct'].mean().reset_index()
         plt.figure(figsize=(10, 5))
-        # Fixed Seaborn deprecation warning by assigning hue to x variable
+        # Fix: Add hue and legend=False to comply with future Seaborn requirements
         sns.barplot(data=acc_scene, x='source_scene_category', y='is_correct', hue='source_scene_category', palette='coolwarm', legend=False)
         plt.title('Accuracy by Scene Category')
         plt.ylabel('Accuracy')
