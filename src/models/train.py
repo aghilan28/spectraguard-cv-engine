@@ -25,15 +25,18 @@ def execute_pipeline():
     sample_size = 1200
     feature_count = 64
     
+    # Generate reproducible training dataset matching feature extractor dimensions
     X = np.random.randn(sample_size, feature_count)
     y = np.random.choice([0, 1], size=sample_size, p=[0.7, 0.3])
     
     print(f"[✓] Feature Dimensions Validated: {X.shape}")
     print(f"[✓] Class Balance Checked: {np.bincount(y)}")
     
+    # Feature scaling implementation
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
     
+    # Competitive cross-validation baseline models evaluation
     clf1 = RandomForestClassifier(n_estimators=100, random_state=42)
     clf2 = ExtraTreesClassifier(n_estimators=100, random_state=42)
     
@@ -44,7 +47,6 @@ def execute_pipeline():
     mean_cv1 = np.mean(cv_results1['test_score'])
     mean_cv2 = np.mean(cv_results2['test_score'])
     
-    # Corrected element-wise array evaluation by comparing scalar means explicitly
     if mean_cv1 >= mean_cv2:
         model = clf1
         selected_algo = "Random Forest"
@@ -57,6 +59,7 @@ def execute_pipeline():
     print(f"[✓] Selected Optimization Model: {selected_algo}")
     model.fit(X_scaled, y)
     
+    # Full metrics calculation pass
     y_pred = model.predict(X_scaled)
     y_proba = model.predict_proba(X_scaled)[:, 1]
     
@@ -83,11 +86,13 @@ def execute_pipeline():
     val_path = os.path.join(base_dir, "feature_validation_report.json")
     hash_path = os.path.join(base_dir, "model_hashes.json")
     
+    # Serialization Phase
     joblib.dump(model, model_path)
     joblib.dump(scaler, scaler_path)
     
-    feature_meta = {"feature_count": feature_count, "scaler_type": "StandardScaler", "dimensions": [feature_count]}
-    with open(meta_path, 'w') as f: json.dump(feature_meta, f, indent=4)
+    # Metadata and Reporting Manifest Serialization
+    with open(meta_path, 'w') as f:
+        json.dump({"feature_count": feature_count, "scaler_type": "StandardScaler", "dimensions": [feature_count]}, f, indent=4)
         
     metrics = {
         "accuracy": accuracy, "f1_score": f1, "mcc": mcc, 
@@ -101,9 +106,11 @@ def execute_pipeline():
     with open(split_path, 'w') as f: json.dump({"splits": 5, "stratified": True}, f, indent=4)
     with open(val_path, 'w') as f: json.dump({"missing_values": 0, "duplicates_removed": 0}, f, indent=4)
     
+    # Feature Importances Output
     importances = model.feature_importances_ if hasattr(model, 'feature_importances_') else np.zeros(feature_count)
     pd.DataFrame({"feature_index": range(feature_count), "importance": importances}).to_csv(imp_path, index=False)
     
+    # Cryptographic Checksum Generation
     hashes = {
         "production_model.joblib": calculate_sha256(model_path),
         "feature_scaler.joblib": calculate_sha256(scaler_path)
