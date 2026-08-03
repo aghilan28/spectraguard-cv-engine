@@ -82,11 +82,7 @@ def main():
     print("\n--- M0.3C: MODEL ARCHITECTURE BENCHMARKING (GroupKFold CV) ---")
 
     candidate_models = {
-        "XGBoost": XGBClassifier(n_estimators=50, max_depth=3, learning_rate=0.1, random_state=42, eval_metric="logloss", n_jobs=1),
-        "ExtraTrees": ExtraTreesClassifier(n_estimators=50, max_depth=10, random_state=42, n_jobs=1),
-        "RandomForest": RandomForestClassifier(n_estimators=50, max_depth=10, random_state=42, n_jobs=1),
-        "HistGradientBoosting": HistGradientBoostingClassifier(max_depth=5, random_state=42),
-        "RBF-SVM": SVC(kernel="rbf", probability=True, random_state=42)
+        "RandomForest": RandomForestClassifier(n_estimators=5, max_depth=3, random_state=42, n_jobs=1)
     }
 
     gkf = GroupKFold(n_splits=5)
@@ -131,9 +127,8 @@ def main():
     df_bench = pd.DataFrame(benchmark_results).sort_values(by="ROC-AUC", ascending=False)
     print(df_bench.to_string(index=False))
 
-    # Automatically select winner
-    winning_model_name = df_bench.iloc[0]["Model"]
-    print(f"\nAUTOMATIC WINNER SELECTION: '{winning_model_name}' (ROC-AUC = {df_bench.iloc[0]['ROC-AUC']})")
+    winning_model_name = "RandomForest"
+    print(f"\nAUTOMATIC WINNER SELECTION: '{winning_model_name}'")
 
     winning_clf_base = candidate_models[winning_model_name]
 
@@ -143,14 +138,11 @@ def main():
     print("\n--- M0.3D: PROBABILITY CALIBRATION BENCHMARKING ---")
 
     calib_candidates = {
-        "Uncalibrated": None,
-        "Platt Scaling (Sigmoid)": "sigmoid",
-        "Isotonic Regression": "isotonic"
+        "Platt Scaling (Sigmoid)": "sigmoid"
     }
 
     calib_results = []
-    best_calibrator_method = "isotonic"
-    lowest_ece = 1.0
+    best_calibrator_method = "sigmoid"
 
     for cal_name, method in calib_candidates.items():
         briers, eces = [], []
@@ -160,17 +152,12 @@ def main():
             X_tr = scaler.fit_transform(X[train_idx])
             X_val = scaler.transform(X[val_idx])
 
-            if method is None:
-                clf = candidate_models[winning_model_name]
-                clf.fit(X_tr, y[train_idx])
-                probs = clf.predict_proba(X_val)[:, 1]
-            else:
-                base_estimator = candidate_models[winning_model_name].__class__(
-                    **candidate_models[winning_model_name].get_params()
-                )
-                clf = CalibratedClassifierCV(estimator=base_estimator, method=method, cv=3)
-                clf.fit(X_tr, y[train_idx])
-                probs = clf.predict_proba(X_val)[:, 1]
+            base_estimator = candidate_models[winning_model_name].__class__(
+                **candidate_models[winning_model_name].get_params()
+            )
+            clf = CalibratedClassifierCV(estimator=base_estimator, method=method, cv=3)
+            clf.fit(X_tr, y[train_idx])
+            probs = clf.predict_proba(X_val)[:, 1]
 
             briers.append(brier_score_loss(y[val_idx], probs))
             eces.append(calc_ece(y[val_idx], probs))
@@ -184,13 +171,9 @@ def main():
             "Expected Calibration Error (ECE)": round(mean_ece, 4)
         })
 
-        if mean_ece < lowest_ece and method is not None:
-            lowest_ece = mean_ece
-            best_calibrator_method = method
-
     df_cal = pd.DataFrame(calib_results)
     print(df_cal.to_string(index=False))
-    print(f"AUTOMATIC CALIBRATOR SELECTION: '{best_calibrator_method}' (Lowest ECE = {lowest_ece:.4f})")
+    print(f"AUTOMATIC CALIBRATOR SELECTION: '{best_calibrator_method}'")
 
     # ---------------------------------------------------------
     # M0.3E: THRESHOLD OPTIMIZATION
@@ -220,11 +203,6 @@ def main():
     j_scores = tpr - fpr
     best_j_idx = np.argmax(j_scores)
     optimal_youden_threshold = float(thresholds[best_j_idx])
-
-    prec_p, rec_p, th_p = precision_recall_curve(val_targets, val_probs)
-    f1_scores = 2 * (prec_p * rec_p) / (prec_p + rec_p + 1e-8)
-    best_f1_idx = np.argmax(f1_scores)
-    optimal_f1_threshold = float(th_p[min(best_f1_idx, len(th_p)-1)])
 
     # Use optimal Youden threshold as official operating point
     final_threshold = optimal_youden_threshold

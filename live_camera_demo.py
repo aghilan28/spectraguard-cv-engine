@@ -117,19 +117,28 @@ def main():
             if simulate:
                 cv2.putText(display_frame, "SIMULATION MODE", (20, 145), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 1)
 
-            cv2.imshow("SpectraGuard Live Camera Inference", display_frame)
+            try:
+                cv2.imshow("SpectraGuard Live Camera Inference", display_frame)
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord('q') or key == 27:
+                    break
+            except cv2.error as e:
+                print(f"[INFO] Headless environment detected: cv2.imshow not supported. Running headless demo mode...")
+                print(f"Frame {frame_count}: Prob(Tampered)={prob:.4f} | Status={'TAMPERING' if is_tampered else 'OK'}")
+                if frame_count >= window_size + 5: # run a few frames to verify and then exit
+                    break
 
             frame_count += 1
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord('q') or key == 27:
-                break
 
     except KeyboardInterrupt:
         print("\nDemo interrupted by user.")
     finally:
         if cap is not None:
             cap.release()
-        cv2.destroyAllWindows()
+        try:
+            cv2.destroyAllWindows()
+        except cv2.error:
+            pass
         print("Demo closed.")
 
 if __name__ == "__main__":

@@ -11,7 +11,7 @@ __pycache__/
 .ruff_cache/
 
 # Datasets & Large Binaries (R23)
-data/
+/data/
 datasets/
 *.mp4
 *.avi
