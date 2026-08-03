@@ -1,4 +1,4 @@
-﻿# Environments
+# Environments
 .venv/
 venv/
 env/
@@ -27,5 +27,9 @@ datasets/
 *.pkl
 *.model
 *.json
+!src/preprocessing/pipeline_config.json
 models/
 checkpoints/
+
+# Logs
+*.log

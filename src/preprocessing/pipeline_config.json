@@ -1,0 +1,22 @@
+{
+  "resize": {
+    "width": 640,
+    "height": 640
+  },
+  "color_space": "Y_LUMINANCE",
+  "clahe": {
+    "clip_limit": 2.0,
+    "tile_grid_size": [8, 8]
+  },
+  "rolling_window": 15,
+  "fft": {
+    "highpass_radius_ratio": 0.05,
+    "window_type": "hanning"
+  },
+  "sobel": {
+    "threshold": 100
+  },
+  "threshold": {
+    "default": null
+  }
+}
