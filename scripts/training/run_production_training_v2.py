@@ -342,6 +342,8 @@ def main():
     print(f"\nSuccessfully serialized all production artifacts to:")
     print(f"  Release Path: {RELEASE_DIR}")
     print(f"  Latest Path:  {LATEST_DIR}")
+    print("  FILES IN RELEASE_DIR:", os.listdir(RELEASE_DIR))
+    print("  FILES IN LATEST_DIR:", os.listdir(LATEST_DIR))
     print("\n=========================================================")
     print("M0.3 PRODUCTION PIPELINE TRAINING & FREEZE COMPLETE!")
     print("=========================================================")
