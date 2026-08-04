@@ -1,14 +1,14 @@
 {
-  "timestamp": "2026-07-25T14:19:07.126987+00:00",
+  "timestamp": "2026-08-02T07:44:07.240460+00:00",
   "phase": "PHASE 4",
   "subsystem": "spectraguard-cv-engine",
   "benchmarks": {
     "iterations": 20,
     "resolution": "1920x1080",
     "sequence_length": 3,
-    "total_time_seconds": 11.1521,
-    "average_latency_ms": 557.6,
-    "throughput_extractions_per_sec": 1.79
+    "total_time_seconds": 17.6962,
+    "average_latency_ms": 884.81,
+    "throughput_extractions_per_sec": 1.13
   },
   "overall_status": "READY"
 }

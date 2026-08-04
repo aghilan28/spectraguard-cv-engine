@@ -45,19 +45,31 @@ class FeatureScaler:
 
     def transform(self, df: pd.DataFrame) -> pd.DataFrame:
         """Applies the fitted scaling to the feature matrix."""
-        if not self.is_fitted or self.feature_names is None:
+        if not self.is_fitted:
             raise RuntimeError("Scaler must be fitted before calling transform().")
 
-        missing = [f for f in self.feature_names if f not in df.columns]
+        feature_names = self.feature_names or list(df.columns)
+        missing = [f for f in feature_names if f not in df.columns]
         if missing:
             raise KeyError(f"Missing features in DataFrame during transform: {missing}")
 
         # Create a copy to avoid SettingWithCopyWarning
         transformed_df = df.copy()
 
+        scaler_input_dim = getattr(self.scaler, "n_features_in_", None)
+        if scaler_input_dim is not None and scaler_input_dim != len(feature_names):
+            selected_features = list(feature_names[:scaler_input_dim])
+            if len(selected_features) != scaler_input_dim:
+                raise ValueError(
+                    f"Scaler expects {scaler_input_dim} features but only {len(selected_features)} were available."
+                )
+            scaled_values = self.scaler.transform(df[selected_features])
+            transformed_df[selected_features] = scaled_values
+            return transformed_df
+
         # Apply transformation only to the designated feature columns
-        scaled_values = self.scaler.transform(df[self.feature_names])
-        transformed_df[self.feature_names] = scaled_values
+        scaled_values = self.scaler.transform(df[feature_names])
+        transformed_df[feature_names] = scaled_values
 
         return transformed_df
 
@@ -86,9 +98,18 @@ class FeatureScaler:
 
         payload = joblib.load(filepath)
 
-        instance = cls(method=payload["method"])
-        instance.scaler = payload["scaler"]
-        instance.feature_names = payload["feature_names"]
-        instance.is_fitted = True
+        if isinstance(payload, dict):
+            instance = cls(method=payload.get("method", "standard"))
+            instance.scaler = payload["scaler"]
+            instance.feature_names = payload.get("feature_names")
+            instance.is_fitted = True
+            return instance
 
-        return instance
+        if hasattr(payload, "mean_") and hasattr(payload, "transform"):
+            instance = cls(method="standard")
+            instance.scaler = payload
+            instance.feature_names = None
+            instance.is_fitted = True
+            return instance
+
+        raise TypeError(f"Unsupported scaler payload type: {type(payload)!r}")

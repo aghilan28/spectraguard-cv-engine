@@ -1,4 +1,4 @@
-﻿"""Core training orchestrator for SpectraGuard predictive models."""
+"""Core training orchestrator for SpectraGuard predictive models."""
 
 import os
 import joblib
@@ -53,12 +53,16 @@ class ModelTrainer:
         """Executes basic inference using the trained model weights."""
         if not self.is_trained:
             raise RuntimeError("Model must be trained before calling predict().")
+        if hasattr(self.model, "feature_names_in_") and isinstance(X, pd.DataFrame):
+            X = X[self.model.feature_names_in_]
         return self.model.predict(X)
 
     def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
         """Executes probabilistic inference using the trained model weights."""
         if not self.is_trained:
             raise RuntimeError("Model must be trained before calling predict_proba().")
+        if hasattr(self.model, "feature_names_in_") and isinstance(X, pd.DataFrame):
+            X = X[self.model.feature_names_in_]
         return self.model.predict_proba(X)
 
     def save_checkpoint(self, filename: str) -> str:
@@ -81,7 +85,17 @@ class ModelTrainer:
 
         payload = joblib.load(filepath)
 
-        instance = cls(config=payload["config"])
-        instance.model = payload["model"]
-        instance.is_trained = True
-        return instance
+        if isinstance(payload, dict) and "config" in payload and "model" in payload:
+            instance = cls(config=payload["config"])
+            instance.model = payload["model"]
+            instance.is_trained = True
+            return instance
+
+        if hasattr(payload, "predict") and hasattr(payload, "predict_proba"):
+            config = TrainingConfig(model_type="xgboost")
+            instance = cls(config=config)
+            instance.model = payload
+            instance.is_trained = True
+            return instance
+
+        raise TypeError(f"Unsupported checkpoint payload type: {type(payload)!r}")

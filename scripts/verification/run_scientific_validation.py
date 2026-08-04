@@ -63,14 +63,14 @@ def run_all_verifications():
     # 9.3: Model Loading Verification
     print("\n[P9.3] Verifying Model Deserialization...")
     try:
-        artifacts = ModelLoader.load_version(v06_dir)
-        print("  Successfully loaded Model Version v0.6.0")
+        artifacts = ModelLoader.load_version(v07_dir)
+        print("  Successfully loaded Model Version v0.7.5")
         print("  Model Class:", artifacts.trainer.model.__class__.__name__)
         print("  Scaler Class:", artifacts.scaler.scaler.__class__.__name__)
         print("  Is Fitted:", artifacts.scaler.is_fitted)
         print("  Is Trained:", artifacts.trainer.is_trained)
     except Exception as e:
-        print("  Failed to load Model Version v0.6.0:", e)
+        print("  Failed to load Model Version v0.7.5:", e)
         return
         
     # 9.4 & 9.6: Inference and Feature Integrity Verification
@@ -91,6 +91,7 @@ def run_all_verifications():
             print(f"    {k}: {val}")
             
         X = pd.DataFrame([arr], columns=EXPECTED_UNIFIED_FEATURES)
+        X["log_spectral_energy"] = np.log1p(X["spectral_energy"])
         scaled_df = artifacts.scaler.transform(X)
         print("\n  Successfully transformed features using scaler:")
         for k in EXPECTED_UNIFIED_FEATURES:

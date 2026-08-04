@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-07-25T15:00:50.516086+00:00",
+  "timestamp": "2026-08-02T07:44:20.521161+00:00",
   "phase": "PHASE 6",
   "subsystem": "spectraguard-cv-engine-ml",
   "validation_report": {
@@ -27,8 +27,8 @@
     },
     "performance": {
       "test_samples": 1000,
-      "total_inference_ms": 2.893900003982708,
-      "avg_inference_ms_per_sample": 0.002893900003982708
+      "total_inference_ms": 9.945700003299862,
+      "avg_inference_ms_per_sample": 0.009945700003299862
     }
   },
   "overall_status": "READY"

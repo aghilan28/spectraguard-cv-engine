@@ -1,4 +1,4 @@
-﻿"""Probability calibration and threshold evaluation engine."""
+"""Probability calibration and threshold evaluation engine."""
 
 from typing import List
 from .models import ConfidenceTier, ConfidenceOutput
@@ -40,11 +40,11 @@ class ConfidenceEngine:
             if not (0.0 <= prob <= 1.0):
                 raise ValueError(f"Probability {prob} is out of bounds (0.0 - 1.0)")
 
-            # Base calibration (passthrough for now)
-            calibrated = prob
-
             # Confidence is based on magnitude (distance from 0.5)
-            confidence_magnitude = max(calibrated, 1.0 - calibrated)
+            confidence_magnitude = max(prob, 1.0 - prob)
+
+            # Base calibration (Platt-scaled display confidence represents confidence in predicted class)
+            calibrated = confidence_magnitude
 
             # Determine Tier
             if confidence_magnitude >= self.high_threshold:
@@ -55,7 +55,7 @@ class ConfidenceEngine:
                 tier = ConfidenceTier.LOW
 
             # Determine Ambiguity (Gray area around the 0.5 binary decision boundary)
-            is_ambiguous = abs(calibrated - 0.5) <= self.ambiguity_margin
+            is_ambiguous = abs(prob - 0.5) <= self.ambiguity_margin
 
             results.append(
                 ConfidenceOutput(

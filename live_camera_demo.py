@@ -1,145 +1,123 @@
-import os
-import sys
-import json
-import time
+﻿import os, sys, json, joblib, time
 import cv2
-import joblib
 import numpy as np
-import argparse
+import warnings
 
-sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
-from src.preprocessing import PreprocessingPipeline, FeatureVector
+warnings.filterwarnings('ignore')
+sys.path.insert(0, os.path.abspath('src'))
 
-def parse_args():
-    parser = argparse.ArgumentParser(description="SpectraGuard Live Camera Demo")
-    parser.add_argument("--camera", type=int, default=0, help="Webcam device index (default: 0)")
-    parser.add_argument("--simulate", action="store_true", help="Simulate camera input with random noise frames")
-    return parser.parse_args()
+try:
+    from preprocessing.pipeline import PreprocessingPipeline
+except ImportError as e:
+    print("[FATAL] Failed to import PreprocessingPipeline: {}".format(e))
+    sys.exit(1)
 
 def main():
-    args = parse_args()
-    print("=== SpectraGuard Live Camera Demo ===")
-
-    # Define paths
-    release_dir = os.path.join("data", "models", "releases", "v0.9.0-audit")
-    model_path = os.path.join(release_dir, "production_model.joblib")
-    scaler_path = os.path.join(release_dir, "feature_scaler.joblib")
-    thresh_path = os.path.join(release_dir, "threshold.json")
-
-    # Load artifacts
-    if not (os.path.exists(model_path) and os.path.exists(scaler_path) and os.path.exists(thresh_path)):
-        print(f"[ERROR] Production model artifacts not found in {release_dir}.")
-        print("Please run training first.")
+    print("[INFO] Booting SpectraGuard Live Inference Engine (REPAIRED)...")
+    
+    model_dir = os.path.normpath('data/models/latest')
+    try:
+        model = joblib.load(os.path.join(model_dir, 'production_model.joblib'))
+        scaler = joblib.load(os.path.join(model_dir, 'feature_scaler.joblib'))
+        with open(os.path.join(model_dir, 'threshold.json'), 'r') as f:
+            threshold = json.load(f).get('optimal_threshold', 0.4285)
+        with open(os.path.join(model_dir, 'feature_metadata.json'), 'r') as f:
+            feat_cols = json.load(f).get('feature_names', [])
+        print("[INFO] Artifacts loaded. Operating strictly at threshold {:.4f}".format(threshold))
+    except Exception as e:
+        print("[FATAL] Artifact load failed: {}".format(e))
         sys.exit(1)
 
-    print("Loading production model and scaler...")
-    model = joblib.load(model_path)
-    scaler = joblib.load(scaler_path)
-
-    with open(thresh_path, "r") as f:
-        threshold_info = json.load(f)
-    threshold = threshold_info["optimal_threshold"]
-    print(f"Model loaded successfully. Operating threshold (tau) = {threshold:.4f}")
-
-    # Initialize preprocessing pipeline
-    pipeline = PreprocessingPipeline()
-    rolling_window = []
-    window_size = 15  # standard from pipeline_config.json
-
-    simulate = args.simulate
-    cap = None
-
-    if not simulate:
-        print(f"Opening webcam index {args.camera}...")
-        cap = cv2.VideoCapture(args.camera)
-        if not cap.isOpened():
-            print(f"[WARNING] Could not open webcam index {args.camera}. Falling back to simulation mode...")
-            simulate = True
-            cap = None
-
-    if simulate:
-        print("Starting in SIMULATION MODE. Generating mock frames...")
-    else:
-        print("Webcam opened. Press 'q' or 'ESC' to exit.")
-
-    frame_count = 0
-    t_start = time.time()
-
     try:
-        while True:
-            t0 = time.time()
+        pipeline = PreprocessingPipeline()
+    except Exception as e:
+        print("[FATAL] Pipeline initialization failed: {}".format(e))
+        sys.exit(1)
 
-            if simulate:
-                # Generate random synthetic BGR frame
-                frame = np.random.randint(0, 256, (720, 1280, 3), dtype=np.uint8)
-                # Periodically simulate tampering on visual features (e.g., add high noise or blur)
-                if (frame_count // 60) % 2 == 1:
-                    # Tampering block simulation
-                    frame[200:500, 200:1000] = 0
-                time.sleep(0.033) # limit loop to ~30 FPS
-                ret = True
-            else:
-                ret, frame = cap.read()
-                if not ret:
-                    print("Failed to grab frame. Exiting.")
-                    break
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        print("[FATAL] Cannot open physical webcam on index 0.")
+        sys.exit(1)
 
-            # Maintain rolling window of frames
-            rolling_window.append(frame)
-            if len(rolling_window) > window_size:
-                rolling_window.pop(0)
+    buffer = []
+    buffer_size = 15
+    frame_count = 0
+    duplicate_count = 0
+    font = cv2.FONT_HERSHEY_SIMPLEX
 
-            # Feature extraction and prediction
-            is_tampered = False
-            prob = 0.0
-            latency = 0.0
+    print("[INFO] Camera stream active. Awaiting buffer fill. Press 'q' to terminate.")
 
-            if len(rolling_window) == window_size:
-                t_extract = time.time()
-                # Run preprocessing and feature extraction
-                feat_vec = pipeline.extract(rolling_window)
-                X_raw = feat_vec.to_numpy().reshape(1, -1)
-                # Scaling
-                X_scaled = scaler.transform(X_raw)
-                # Inference
-                prob = model.predict_proba(X_scaled)[0, 1]
-                is_tampered = bool(prob >= threshold)
-                latency = (time.time() - t_extract) * 1000.0
-
-            # Render overlay info on the frame
-            display_frame = frame.copy()
-            status_text = f"Status: {'TAMPERING DETECTED' if is_tampered else 'OK'}"
-            color = (0, 0, 255) if is_tampered else (0, 255, 0)
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            print("[ERROR] Hardware frame read failure.")
+            break
             
-            cv2.putText(display_frame, status_text, (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
-            cv2.putText(display_frame, f"Tampering Prob: {prob:.4f} (Threshold: {threshold:.4f})", (20, 75), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
-            cv2.putText(display_frame, f"Latency: {latency:.1f}ms | Frame: {frame_count}", (20, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
-            if simulate:
-                cv2.putText(display_frame, "SIMULATION MODE", (20, 145), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 1)
+        start_t = time.time()
+        frame_count += 1
+        
+        # --- BUG 2 REPAIR: Hardware-aware duplicate filtering ---
+        if len(buffer) > 0 and np.array_equal(frame, buffer[-1]):
+            duplicate_count += 1
+            continue
+            
+        buffer.append(frame.copy())
+        if len(buffer) > buffer_size:
+            buffer.pop(0)
 
+        overlay = frame.copy()
+        status = "Buffering Frame Data..."
+        color = (0, 255, 255)
+        prob = 0.0
+        pred = 0
+        conf = 0.0
+        
+        if len(buffer) == buffer_size:
             try:
-                cv2.imshow("SpectraGuard Live Camera Inference", display_frame)
-                key = cv2.waitKey(1) & 0xFF
-                if key == ord('q') or key == 27:
-                    break
-            except cv2.error as e:
-                print(f"[INFO] Headless environment detected: cv2.imshow not supported. Running headless demo mode...")
-                print(f"Frame {frame_count}: Prob(Tampered)={prob:.4f} | Status={'TAMPERING' if is_tampered else 'OK'}")
-                if frame_count >= window_size + 5: # run a few frames to verify and then exit
-                    break
+                feat_vec = pipeline.extract(buffer)
+                feat_dict = feat_vec.to_dict()
+                raw_features = np.array([[feat_dict[c] for c in feat_cols]])
+                
+                # --- BUG 1 REPAIR: Verified sklearn Scaling ---
+                scaled = scaler.transform(raw_features)
+                
+                prob = model.predict_proba(scaled)[:, 1][0]
+                pred = int(prob >= threshold)
+                conf = prob if pred == 1 else (1.0 - prob)
+                
+                status = "TAMPERING DETECTED" if pred == 1 else "ENVIRONMENT SECURE"
+                color = (0, 0, 255) if pred == 1 else (0, 255, 0)
 
-            frame_count += 1
+                # Diagnostic print for live forensic verification (Outputs every ~2 seconds)
+                if frame_count % 60 == 0: 
+                    print("\n--- INFERENCE AUDIT (Frame {}) ---".format(frame_count))
+                    print("Raw LapVar: {:.2f} | Scaled LapVar: {:.2f}".format(raw_features[0][feat_cols.index('laplacian_variance')], scaled[0][feat_cols.index('laplacian_variance')]))
+                    print("Raw TempDiff: {:.2f} | Scaled TempDiff: {:.2f}".format(raw_features[0][feat_cols.index('temporal_difference')], scaled[0][feat_cols.index('temporal_difference')]))
+                    print("Prob: {:.4f} | Pred: {} | Duplicates Blocked: {}".format(prob, pred, duplicate_count))
+                
+            except Exception as e:
+                status = "Pipeline Extraction Error"
+                color = (0, 165, 255)
+        
+        latency = (time.time() - start_t) * 1000
+        fps = 1000.0 / latency if latency > 0 else 0
 
-    except KeyboardInterrupt:
-        print("\nDemo interrupted by user.")
-    finally:
-        if cap is not None:
-            cap.release()
-        try:
-            cv2.destroyAllWindows()
-        except cv2.error:
-            pass
-        print("Demo closed.")
+        cv2.rectangle(overlay, (5, 5), (420, 170), (0, 0, 0), -1)
+        cv2.putText(overlay, "STATUS: {}".format(status), (15, 30), font, 0.7, color, 2)
+        cv2.putText(overlay, "Predictive Probability: {:.4f}".format(prob), (15, 60), font, 0.5, (255,255,255), 1)
+        cv2.putText(overlay, "Inference Confidence: {:.2f}".format(conf), (15, 85), font, 0.5, (255,255,255), 1)
+        cv2.putText(overlay, "Operating Threshold: {:.4f}".format(threshold), (15, 110), font, 0.5, (255,255,255), 1)
+        cv2.putText(overlay, "Engine Latency: {:.1f}ms | FPS: {:.1f}".format(latency, fps), (15, 135), font, 0.5, (255,255,255), 1)
+        cv2.putText(overlay, "Frames: {} | Buffer: {}/{} | Dupes: {}".format(frame_count, len(buffer), buffer_size, duplicate_count), (15, 160), font, 0.5, (255,255,255), 1)
+        
+        cv2.imshow('SpectraGuard Live Execution', overlay)
+        
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            print("[INFO] Terminating live feed.")
+            break
 
-if __name__ == "__main__":
+    cap.release()
+    cv2.destroyAllWindows()
+
+if __name__ == '__main__':
     main()

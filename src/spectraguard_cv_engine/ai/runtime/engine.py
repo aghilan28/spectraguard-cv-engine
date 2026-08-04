@@ -19,6 +19,8 @@ class InferenceRuntime:
     def __init__(self, artifacts: RuntimeArtifacts, config: RuntimeConfig):
         self.artifacts = artifacts
         self.config = config
+        self.last_raw_feature_matrix: pd.DataFrame | None = None
+        self.last_scaled_feature_matrix: pd.DataFrame | None = None
 
     def predict(self, feature_matrix: pd.DataFrame) -> List[PredictionOutput]:
         """
@@ -41,15 +43,21 @@ class InferenceRuntime:
 
         # 1. Input Validation
         if self.config.enforce_schema_validation:
-            expected_features = self.artifacts.scaler.feature_names
+            expected_features = list(self.artifacts.scaler.feature_names or [])
             missing = [f for f in expected_features if f not in feature_matrix.columns]
             if missing:
                 raise KeyError(f"Feature matrix is missing required columns: {missing}")
 
+            ordered_matrix = feature_matrix.reindex(columns=expected_features, copy=False)
+        else:
+            ordered_matrix = feature_matrix.copy()
+
+        self.last_raw_feature_matrix = ordered_matrix.copy()
         start_time = time.perf_counter()
 
         # 2. Pre-processing (Scaling)
-        scaled_df = self.artifacts.scaler.transform(feature_matrix)
+        scaled_df = self.artifacts.scaler.transform(ordered_matrix)
+        self.last_scaled_feature_matrix = scaled_df.copy()
 
         # 3. Model Inference
         predictions = self.artifacts.trainer.predict(scaled_df)

@@ -24,14 +24,21 @@ class ModelLoader:
     @staticmethod
     def load_version(version_dir: str) -> RuntimeArtifacts:
         """
-        Validates and loads the manifest, scaler, and model from a Phase 6 release directory.
+        Validates and loads the canonical model/scaler metadata for the active release.
         """
         if not os.path.exists(version_dir):
             raise FileNotFoundError(f"Version directory not found: {version_dir}")
 
-        manifest_path = os.path.join(version_dir, "manifest.json")
+        manifest_path = os.path.join(version_dir, "training_manifest.json")
+        if not os.path.exists(manifest_path):
+            manifest_path = os.path.join(version_dir, "manifest.json")
+
         scaler_path = os.path.join(version_dir, "feature_scaler.joblib")
-        model_path = os.path.join(version_dir, "classifier.joblib")
+        model_candidates = [
+            os.path.join(version_dir, "production_model.joblib"),
+            os.path.join(version_dir, "classifier.joblib"),
+        ]
+        model_path = next((path for path in model_candidates if os.path.exists(path)), model_candidates[0])
 
         if not os.path.exists(manifest_path):
             raise FileNotFoundError(f"Manifest missing at {manifest_path}")

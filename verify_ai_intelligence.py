@@ -1,4 +1,4 @@
-﻿"""Master AI Intelligence Validation and Benchmarking Suite (Phase 7 Final)."""
+"""Master AI Intelligence Validation and Benchmarking Suite (Phase 7 Final)."""
 
 import os
 import sys
@@ -25,7 +25,7 @@ def run_ai_integration_test() -> dict:
     print("\n[BENCHMARK] Executing Phase 7 AI Intelligence Validation...")
 
     # 1. Load the Phase 6 Production Model
-    version_dir = os.path.normpath("data/models/releases/v0.6.0")
+    version_dir = os.path.normpath("data/models/releases/v0.7.5")
     if not os.path.exists(version_dir):
         raise FileNotFoundError(f"Required Phase 6 model missing at: {version_dir}")
 
@@ -38,26 +38,58 @@ def run_ai_integration_test() -> dict:
     confidence_engine = ConfidenceEngine()
     state_tracker = StateTracker(cooldown_frames=5)
 
+    def generate_realistic_features(size, is_tampered):
+        data = []
+        for _ in range(size):
+            if not is_tampered:
+                row = {
+                    "mean_intensity": np.random.normal(loc=128.27, scale=10.0),
+                    "variance_intensity": np.random.normal(loc=5427.49, scale=100.0),
+                    "skewness": np.random.normal(loc=-0.0038, scale=0.01),
+                    "kurtosis": np.random.normal(loc=-1.21, scale=0.05),
+                    "mean_magnitude": np.random.normal(loc=22.37, scale=2.0),
+                    "max_magnitude": np.random.normal(loc=586.49, scale=30.0),
+                    "edge_density": np.random.normal(loc=0.124, scale=0.01),
+                    "laplacian_variance": np.random.normal(loc=21.34, scale=2.0),
+                    "global_contrast": np.random.normal(loc=73.67, scale=5.0),
+                    "spectral_energy": np.random.normal(loc=4.34e10, scale=2.0e9),
+                    "spectral_entropy": np.random.normal(loc=20.96, scale=0.5),
+                    "spectral_flatness": np.random.normal(loc=0.9837, scale=0.005),
+                    "mean_motion": np.random.normal(loc=4.09, scale=1.0),
+                    "motion_variance": np.random.normal(loc=0.20, scale=0.05),
+                    "temporal_instability": np.random.normal(loc=0.45, scale=0.1),
+                }
+            else:
+                row = {
+                    "mean_intensity": np.random.normal(loc=129.36, scale=10.0),
+                    "variance_intensity": np.random.normal(loc=5256.73, scale=100.0),
+                    "skewness": np.random.normal(loc=-0.0036, scale=0.01),
+                    "kurtosis": np.random.normal(loc=-1.15, scale=0.05),
+                    "mean_magnitude": np.random.normal(loc=2.86, scale=0.5),
+                    "max_magnitude": np.random.normal(loc=108.0, scale=10.0),
+                    "edge_density": np.random.normal(loc=0.005, scale=0.002),
+                    "laplacian_variance": np.random.normal(loc=5.64, scale=1.0),
+                    "global_contrast": np.random.normal(loc=72.50, scale=5.0),
+                    "spectral_energy": np.random.normal(loc=3.58e10, scale=2.0e9),
+                    "spectral_entropy": np.random.normal(loc=20.97, scale=0.5),
+                    "spectral_flatness": np.random.normal(loc=0.9873, scale=0.005),
+                    "mean_motion": np.random.normal(loc=1.05, scale=0.5),
+                    "motion_variance": np.random.normal(loc=0.34, scale=0.05),
+                    "temporal_instability": np.random.normal(loc=0.59, scale=0.1),
+                }
+            data.append(row)
+        return pd.DataFrame(data, columns=EXPECTED_UNIFIED_FEATURES)
+
     # 3. Simulate a temporal stream of frames (Clear -> Attack -> Clear)
     np.random.seed(42)
     stream_size = 20
     # Simulate first 5 clear, 5 tampered, 10 clear
-    X_clear1 = pd.DataFrame(
-        np.random.normal(loc=-1.0, scale=0.5, size=(5, len(EXPECTED_UNIFIED_FEATURES))),
-        columns=EXPECTED_UNIFIED_FEATURES,
-    )
-    X_attack = pd.DataFrame(
-        np.random.normal(loc=1.5, scale=0.5, size=(5, len(EXPECTED_UNIFIED_FEATURES))),
-        columns=EXPECTED_UNIFIED_FEATURES,
-    )
-    X_clear2 = pd.DataFrame(
-        np.random.normal(
-            loc=-1.0, scale=0.5, size=(10, len(EXPECTED_UNIFIED_FEATURES))
-        ),
-        columns=EXPECTED_UNIFIED_FEATURES,
-    )
+    X_clear1 = generate_realistic_features(5, is_tampered=False)
+    X_attack = generate_realistic_features(5, is_tampered=True)
+    X_clear2 = generate_realistic_features(10, is_tampered=False)
 
     stream_df = pd.concat([X_clear1, X_attack, X_clear2], ignore_index=True)
+    stream_df["log_spectral_energy"] = np.log1p(np.abs(stream_df["spectral_energy"]))
 
     events_packaged = 0
     state_transitions = []

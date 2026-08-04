@@ -1,6 +1,6 @@
 {
     "version": "v0.6.0",
-    "timestamp_utc": "2026-07-25T15:00:50.513693+00:00",
+    "timestamp_utc": "2026-08-02T07:44:20.518165+00:00",
     "model_type": "xgboost",
     "scaling_method": "standard",
     "features": [
