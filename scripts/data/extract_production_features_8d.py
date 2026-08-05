@@ -36,15 +36,25 @@ def extract_features_from_video(video_path: str, max_frames: int = 15) -> Featur
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     if total_frames <= 0:
         total_frames = 300  # Fallback if frame count cannot be read
-    
-    step = max(1, total_frames // max_frames)
+
+    # ROOT-CAUSE FIX (forensic audit, Aug 2026), Phase C window-consistency
+    # requirement: live_camera_demo.py's `rolling_window` is a buffer of the
+    # last `window_size` (15) CONSECUTIVE real-time camera frames -- i.e. a
+    # tight ~0.5s window at 30fps. This function previously sampled 15
+    # frames spread with `step = total_frames // 15` across the ENTIRE clip
+    # (often gaps of 10-20+ frames apart), which is a materially different
+    # temporal window and drives temporal_difference (and, via CLAHE/FFT
+    # sensitivity to whichever frame lands last, the other 7 features) to a
+    # different distribution than what live inference ever sees. We now
+    # sample `max_frames` CONSECUTIVE frames -- matching the live rolling
+    # window's semantics -- starting from the clip midpoint (where staged
+    # tamper events in this dataset are centered) so training features are
+    # drawn from the same kind of window as production inference.
+    start_idx = max(0, (total_frames - max_frames) // 2)
 
     frames = []
+    cap.set(cv2.CAP_PROP_POS_FRAMES, start_idx)
     for i in range(max_frames):
-        target_idx = i * step
-        if target_idx >= total_frames:
-            break
-        cap.set(cv2.CAP_PROP_POS_FRAMES, target_idx)
         ret, frame = cap.read()
         if not ret:
             break
@@ -70,7 +80,13 @@ def process_video_task(task):
             "video_id": vid_id,
             "label": label,
             "is_tampered": is_tampered,
-            "attack_type": attack_type
+            "attack_type": attack_type,
+            # Provenance marker: proves these 8 values came from a real
+            # video run through the actual PreprocessingPipeline, not from
+            # scripts/data/generate_synthetic_production_features.py.
+            # run_production_training_v2.py refuses to train unless every
+            # row carries this exact marker. See FORENSIC_AUDIT.md.
+            "extraction_source": "real_pipeline_v1",
         }
         res.update(f_vec.to_dict())
         return res
@@ -133,7 +149,7 @@ def main():
 
     df_out = pd.DataFrame(results)
     
-    meta_cols = ["video_id", "label", "is_tampered", "attack_type"]
+    meta_cols = ["video_id", "label", "is_tampered", "attack_type", "extraction_source"]
     feat_cols = FeatureVector.feature_names()
     all_cols = meta_cols + feat_cols
     df_out = df_out[all_cols]

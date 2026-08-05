@@ -72,6 +72,45 @@ def main():
     feature_cols = FeatureVector.feature_names()
     X = df[feature_cols].values
     y = df["label"].values
+
+    # ---------------------------------------------------------
+    # ROOT-CAUSE GUARD (forensic audit, Aug 2026):
+    # This CSV must contain features produced by the REAL
+    # PreprocessingPipeline (src/preprocessing/pipeline.py) run on actual
+    # video, not fabricated placeholder values. A prior incident used
+    # scripts/data/generate_synthetic_production_features.py -- which wrote
+    # np.random.normal() placeholders to this exact filename -- to train the
+    # production scaler/model. The resulting scaler's mean_/scale_ were fit
+    # to a distribution the real pipeline never produces, so every live
+    # camera frame landed far outside it and was scored as "tampered"
+    # almost universally.
+    #
+    # A pure statistical plausibility check on the 8 feature values isn't a
+    # reliable discriminator here (the fabricated ranges and real ranges can
+    # both fall inside generously-wide bounds). Instead, extractor scripts
+    # now stamp every row with an explicit `extraction_source` provenance
+    # marker. We hard-fail unless every row was produced by the real
+    # pipeline.
+    if "extraction_source" not in df.columns:
+        raise ValueError(
+            f"[DATA PROVENANCE CHECK FAILED] {FEATURES_CSV} has no "
+            "'extraction_source' column, so its origin can't be verified. "
+            "Regenerate it with scripts/data/extract_production_features_8d.py "
+            "(real video through the actual PreprocessingPipeline), which "
+            "stamps every row 'real_pipeline_v1'. Refusing to train on "
+            "unverified data."
+        )
+    bad_rows = df[df["extraction_source"] != "real_pipeline_v1"]
+    if len(bad_rows) > 0:
+        raise ValueError(
+            f"[DATA PROVENANCE CHECK FAILED] {len(bad_rows)}/{len(df)} rows "
+            f"in {FEATURES_CSV} are not tagged 'real_pipeline_v1' "
+            f"(found: {sorted(bad_rows['extraction_source'].unique())}). "
+            "This looks like fabricated/placeholder data from "
+            "scripts/data/generate_synthetic_production_features.py, not "
+            "real extracted features. Refusing to train on it."
+        )
+    print(f"[OK] Verified all {len(df)} rows carry the 'real_pipeline_v1' provenance marker.")
     groups = df["video_id"].apply(extract_camera_id).values
     unique_cams = np.unique(groups)
     print(f"Extracted {len(unique_cams)} unique camera group IDs for GroupKFold validation.")

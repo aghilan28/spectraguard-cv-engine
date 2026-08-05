@@ -1,14 +1,54 @@
 import os
+import sys
 import pandas as pd
 import numpy as np
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 META_DIR = os.path.join(BASE_DIR, "data", "datasets", "virat", "metadata")
 GROUND_TRUTH_CSV = os.path.join(META_DIR, "ground_truth.csv")
-OUTPUT_CSV = os.path.join(META_DIR, "production_features_8d.csv")
+
+# ROOT-CAUSE FIX (forensic audit, Aug 2026):
+# This script previously wrote to the SAME path as the real extractor
+# (scripts/data/extract_production_features_8d.py):
+#     data/datasets/virat/metadata/production_features_8d.csv
+# Both scripts used the SAME filename, so whichever one ran LAST silently
+# became "the" production dataset with no marker distinguishing real,
+# pipeline-extracted features from fabricated np.random.normal() values.
+#
+# run_production_training_v2.py trained the shipped StandardScaler +
+# CalibratedClassifierCV(RandomForest) on whatever was in that file. If this
+# synthetic generator ran (e.g. as a stand-in while the VIRAT videos were
+# still downloading), the scaler's mean_/scale_ were fit to fabricated
+# numbers (e.g. fft_low_ratio ~ N(0.85, .03), edge_density ~ N(0.15, .02))
+# that do NOT match the real PreprocessingPipeline's actual output range on
+# camera frames (empirically: fft_low_ratio ~0.3-0.4, edge_density ~0.01,
+# log_total_energy ~20 vs the assumed ~12, etc. -- see FORENSIC_AUDIT.md).
+# Every real feature vector then lands far outside the fitted distribution,
+# so the classifier scores nearly everything as "tampered."
+#
+# This file is now renamed on output and requires an explicit opt-in flag
+# so it can never again be mistaken for, or silently overwrite, the real
+# production dataset.
+OUTPUT_CSV = os.path.join(META_DIR, "production_features_8d.SYNTHETIC_DO_NOT_USE_FOR_TRAINING.csv")
+
 
 def main():
-    print("Generating synthetic 8D features dataset...")
+    if "--i-understand-this-is-fake-data" not in sys.argv:
+        print(
+            "[REFUSING TO RUN] This generates FABRICATED feature values "
+            "(np.random.normal placeholders), NOT real features extracted "
+            "from video via PreprocessingPipeline. It must never be used to "
+            "train or validate the production model -- doing so previously "
+            "caused the live camera to flag almost everything as tampered.\n"
+            "Use scripts/data/extract_production_features_8d.py on real "
+            "VIRAT videos instead. If you specifically need placeholder "
+            "data for a non-production purpose (e.g. wiring up a UI before "
+            "real data exists), re-run with "
+            "--i-understand-this-is-fake-data."
+        )
+        sys.exit(1)
+
+    print("Generating SYNTHETIC (fabricated, non-production) 8D features dataset...")
     df_gt = pd.read_csv(GROUND_TRUTH_CSV)
     
     tasks = []
@@ -24,7 +64,8 @@ def main():
                 "video_id": orig_id,
                 "label": 0,
                 "is_tampered": 0,
-                "attack_type": "none"
+                "attack_type": "none",
+                "extraction_source": "SYNTHETIC_FABRICATED",
             })
             processed_ids.add(orig_id)
 
@@ -33,7 +74,8 @@ def main():
                 "video_id": tamp_id,
                 "label": 1,
                 "is_tampered": 1,
-                "attack_type": attack
+                "attack_type": attack,
+                "extraction_source": "SYNTHETIC_FABRICATED",
             })
             processed_ids.add(tamp_id)
 
@@ -90,7 +132,7 @@ def main():
     df_out = pd.DataFrame(results)
     
     # Ensure correct columns order
-    meta_cols = ["video_id", "label", "is_tampered", "attack_type"]
+    meta_cols = ["video_id", "label", "is_tampered", "attack_type", "extraction_source"]
     feat_cols = [
         "fft_low_ratio", "fft_mid_ratio", "fft_high_ratio", "log_total_energy",
         "laplacian_variance", "edge_density", "shannon_entropy", "temporal_difference"
