@@ -52,13 +52,28 @@ class DetectionEvent(BaseModel):
     tamper_type: str
     confidence: float
 
+    # Notification fields
+    screenshot_path: Optional[str] = ""
+    notification_status: str = "Pending"
+    notification_provider: str = "Telegram"
+    notification_delivery_state: str = "PENDING"
+    notification_timestamp: str = ""
+    notification_attempts: int = 0
+    notification_error: str = ""
+    notification_latency_ms: float = 0.0
+    message_sid: str = ""
+    recipient_number: str = ""
+    retry_count: int = 0
+    last_error: str = ""
+
 class NotificationProvider:
     def send(self, message: str): 
         raise NotImplementedError
 
 class ConsoleProvider(NotificationProvider):
     def send(self, message: str): 
-        print(f"[SMS ALERT] {message}")
+        print(f"[TELEGRAM ALERT] {message}")
+
 
 class EventService:
     _instance = None
@@ -94,6 +109,10 @@ class EventService:
         self.task_queue = queue.Queue()
         self.worker_thread = threading.Thread(target=self._process_queue, daemon=True, name="EventWriterThread")
         self.worker_thread.start()
+
+        # Import NotificationManager lazily to prevent circular imports
+        from backend.notifications.notification_manager import NotificationManager
+        self.notification_manager = NotificationManager()
 
         self._initialized = True
 
@@ -145,7 +164,8 @@ class EventService:
             rule=std_rule,
             event_id=event_id,
             tamper_type=std_rule,
-            confidence=round(prob * 100.0, 2)
+            confidence=round(prob * 100.0, 2),
+            screenshot_path=snap_path
         )
 
         # Add to in-memory deque immediately for instant GUI display
@@ -183,9 +203,15 @@ class EventService:
                 # 1. Asynchronously write JPEG frame
                 if frame is not None:
                     try:
-                        cv2.imwrite(snap_path, frame)
+                        success, img_buf = cv2.imencode(".jpg", frame)
+                        if success:
+                            with open(snap_path, "wb") as f:
+                                f.write(img_buf.tobytes())
+                        else:
+                            print("[EventWriter] cv2.imencode failed")
                     except Exception as e:
                         print(f"[EventWriter] Failed to write snapshot frame: {e}")
+
 
                 # 2. Asynchronously write structured individual JSON
                 try:
@@ -205,6 +231,12 @@ class EventService:
 
                 except Exception as e:
                     print(f"[EventWriter] Failed to write event JSON: {e}")
+
+                # 4. Process SMS alerts asynchronously via NotificationManager
+                try:
+                    self.notification_manager.handle_event(event)
+                except Exception as e:
+                    print(f"[EventWriter] Notification dispatch error: {e}")
 
                 self.task_queue.task_done()
             except Exception as e:

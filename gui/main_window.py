@@ -386,19 +386,7 @@ class MainWindow(QMainWindow):
         if pred == "TAMPERED":
             self.telemetry_label.setStyleSheet("font-family: Consolas, monospace; padding: 5px; color: #ff3333; font-weight: bold; background-color: #330000;")
             
-            # Add to local events list and update sidebar UI
-            ist_tz = timezone(timedelta(hours=5, minutes=30))
-            ts = datetime.now(ist_tz).strftime("%H:%M:%S")
-            evt_str = f"[{ts}] {tamper_type} (Conf: {conf:.1f}%)"
-            
-            if len(self.recent_events_deque) == 0 or self.recent_events_deque[-1] != evt_str:
-                self.recent_events_deque.append(evt_str)
-                self.event_list.clear()
-                # Display in reverse chronological order (newest on top)
-                for item in reversed(self.recent_events_deque):
-                    self.event_list.addItem(item)
-            
-            # Update snapshot thumbnail preview
+            # Update snapshot thumbnail preview immediately on tamper
             try:
                 h_snap, w_snap = frame.shape[:2]
                 rgb_snap = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -427,6 +415,36 @@ class MainWindow(QMainWindow):
             res_str = f"{w}x{h}"
         else:
             res_str = "N/A"
+
+        # Rebuild event list from service history to show updated SMS status fields
+        if self.event_service and self.frame_counter % 10 == 0:
+            events = self.event_service.get_history()
+            self.event_list.clear()
+            for evt in reversed(events):
+                ts = evt.get("timestamp", "")
+                if "_" in ts:
+                    ts = ts.split("_")[1].replace("-", ":")
+                tamper = evt.get("tamper_type", "UNKNOWN")
+                conf = evt.get("confidence", 0.0)
+                
+                # Fetch Telegram delivery state
+                state = evt.get("notification_delivery_state", "PENDING")
+                if state == "DELIVERED":
+                    sms_lbl = "Delivered"
+                elif state == "FAILED":
+                    sms_lbl = "Failed"
+                elif state == "SUPPRESSED":
+                    sms_lbl = "Suppressed"
+                elif state == "DISABLED":
+                    sms_lbl = "Disabled"
+                elif state == "SENDING":
+                    sms_lbl = "Sending"
+                else:
+                    sms_lbl = "Pending"
+                    
+                evt_str = f"[{ts}] {tamper} ({conf:.1f}%) | Telegram: {sms_lbl}"
+
+                self.event_list.addItem(evt_str)
 
         ist_tz = timezone(timedelta(hours=5, minutes=30))
         current_time = datetime.now(ist_tz).strftime("%Y-%m-%d %H:%M:%S")

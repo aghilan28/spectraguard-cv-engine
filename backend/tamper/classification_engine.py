@@ -22,8 +22,12 @@ class TamperClassificationEngine:
             if prev_frame is None or curr_frame is None:
                 return False, 0.0
             
-            gray1 = cv2.cvtColor(prev_frame, cv2.COLOR_BGR2GRAY)
-            gray2 = cv2.cvtColor(curr_frame, cv2.COLOR_BGR2GRAY)
+            # Resize to 480x360 to ensure high-performance ORB feature matching
+            f1_resized = cv2.resize(prev_frame, (480, 360), interpolation=cv2.INTER_AREA)
+            f2_resized = cv2.resize(curr_frame, (480, 360), interpolation=cv2.INTER_AREA)
+            
+            gray1 = cv2.cvtColor(f1_resized, cv2.COLOR_BGR2GRAY)
+            gray2 = cv2.cvtColor(f2_resized, cv2.COLOR_BGR2GRAY)
             
             orb = cv2.ORB_create(nfeatures=300)
             kp1, des1 = orb.detectAndCompute(gray1, None)
@@ -46,7 +50,7 @@ class TamperClassificationEngine:
                 tx = M[0, 2]
                 ty = M[1, 2]
                 shift = np.sqrt(tx**2 + ty**2)
-                if shift > 35.0:  # Shift threshold in pixels
+                if shift > 15.0:  # Shift threshold in pixels on 480x360 plane
                     return True, shift
             return False, 0.0
         except Exception as e:
