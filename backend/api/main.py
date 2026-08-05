@@ -94,3 +94,15 @@ app.include_router(deviation.router, prefix=API_PREFIX)
 app.include_router(tamper.router, prefix=API_PREFIX)
 app.include_router(realtime.router, prefix=API_PREFIX)
 app.include_router(live_stream.router)
+
+from backend.api.routers import model_validation
+app.include_router(model_validation.router)
+
+
+from backend.api.routers import model_adaptation
+app.include_router(model_adaptation.router)
+
+
+from backend.api.routers import events as event_router
+app.include_router(event_router.router)
+

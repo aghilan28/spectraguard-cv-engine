@@ -1,4 +1,4 @@
-﻿import threading
+import threading
 import time
 from datetime import datetime, timezone
 
@@ -102,14 +102,32 @@ class RealtimeEngine:
                 latency_ms = (time.perf_counter() - cycle_start) * 1000
                 current_time = datetime.now(timezone.utc)
 
+                pred_str = "TAMPER" if tamper_res.random_forest_prediction == 1 else "NORMAL"
                 record = {
                     "timestamp": current_time.isoformat(),
-                    "prediction": tamper_res.random_forest_prediction,
+                    "prediction": pred_str,
                     "probability": tamper_res.random_forest_probability,
                     "tamper_type": tamper_res.tamper_type,
+                    "severity": tamper_res.severity,
+                    "rule": tamper_res.tamper_type,
                     "deviation_score": tamper_res.deviation_score,
                     "latency_ms": latency_ms
                 }
+
+                # Persist snapshot event on tamper prediction
+                if tamper_res.random_forest_prediction == 1:
+                    try:
+                        from backend.services.event_service import EventService
+                        EventService().handle_detection(
+                            camera_name=cam.camera_id,
+                            frame=window[-1],
+                            prob=tamper_res.random_forest_probability,
+                            severity=tamper_res.severity,
+                            drift=tamper_res.deviation_score,
+                            rule=tamper_res.tamper_type
+                        )
+                    except Exception as ev_err:
+                        logger.error(f"Event persistence failed: {ev_err}")
 
                 self.history.add(record)
                 self.metrics.update(

@@ -290,6 +290,7 @@ def main():
     feature_meta = {
         "feature_count": len(feature_cols),
         "feature_names": feature_cols,
+        "feature_order": feature_cols,
         "feature_schema": {
             "fft_low_ratio": "Low-frequency DC spectral ratio",
             "fft_mid_ratio": "Mid-frequency structural contour ratio",

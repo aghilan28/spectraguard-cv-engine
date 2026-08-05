@@ -326,6 +326,7 @@ def main():
     # Feature Metadata
     feat_meta = {
         "feature_names": feature_cols,
+        "feature_order": feature_cols,
         "feature_count": len(feature_cols),
         "feature_type": "FFT_Spectral_High_Frequency_Energy"
     }

@@ -1,4 +1,4 @@
-﻿import os
+import os
 import json
 import joblib
 import threading
@@ -51,7 +51,7 @@ class ModelLoader:
 
             with open(metadata_path, "r", encoding="utf-8") as f:
                 m_data = json.load(f)
-                self.feature_names = m_data.get("feature_names", [])
+                self.feature_names = m_data.get("feature_names") or m_data.get("feature_order") or []
                 self.validate_metadata()
 
             logger.info(f"Artifacts successfully locked into memory. Operating Threshold: {self.threshold}")
@@ -69,3 +69,5 @@ class ModelLoader:
         return self.model is not None and self.scaler is not None
 
 model_loader = ModelLoader()
+
+

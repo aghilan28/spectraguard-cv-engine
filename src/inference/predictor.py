@@ -124,7 +124,7 @@ class SpectraGuardPredictor:
         if hasattr(self.model, "feature_names_in_") and self.model.feature_names_in_ is not None:
             model_features = list(self.model.feature_names_in_)
 
-        metadata_features = self.metadata.get("feature_names") or self.metadata.get("features_list")
+        metadata_features = self.metadata.get("feature_names") or self.metadata.get("feature_order") or self.metadata.get("features_list")
         if model_features:
             self.expected_features = list(model_features)
         elif metadata_features:

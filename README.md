@@ -1,2 +1,4 @@
-﻿# SpectraGuard CV Engine
-Phase 1: Data Foundation & Scaffold
+# Standalone CCTV Live Viewer
+
+Phase 1: RTSP Connection Foundation
+Independent Module execution.
