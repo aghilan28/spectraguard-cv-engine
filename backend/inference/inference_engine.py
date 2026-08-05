@@ -1,5 +1,6 @@
-﻿import time
+import time
 import numpy as np
+import pandas as pd
 import sys
 import os
 from datetime import datetime, timezone
@@ -42,14 +43,15 @@ class InferenceEngine:
         # Step 2: Strict Feature Ordering via Metadata
         try:
             ordered_features = [feat_dict[fname] for fname in feature_names]
-            raw_array = np.array([ordered_features], dtype=np.float64)
+            # Convert to DataFrame with original feature names to avoid StandardScaler warning
+            df = pd.DataFrame([ordered_features], columns=feature_names)
         except KeyError as e:
             logger.error(f"Metadata feature mapping mismatch. Missing: {e}")
             raise ValueError(f"Feature extraction missing required column: {e}")
 
         # Step 3: Verified Scaler Execution
         try:
-            scaled_array = scaler.transform(raw_array)
+            scaled_array = scaler.transform(df)
         except Exception as e:
             logger.error(f"Scaler transformation failure: {e}")
             raise RuntimeError(f"Standardization failure: {e}")

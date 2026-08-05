@@ -3,10 +3,18 @@ import os
 import cv2
 import json
 import joblib
-import uuid
+import time
+import numpy as np
+import pandas as pd
+import traceback
 from datetime import datetime, timezone, timedelta
-from PyQt6.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QLabel, QFrame, QMessageBox
-from PyQt6.QtCore import Qt, QTimer
+from collections import deque
+
+from PyQt6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, 
+                             QLabel, QFrame, QMessageBox, QListWidget)
+from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal
+from PyQt6.QtGui import QImage, QPixmap
+
 from gui.login_panel import LoginPanel
 from gui.video_widget import VideoWidget
 from camera.camera_config import CameraConfig
@@ -26,6 +34,132 @@ except ImportError:
     FeatureExtractor = None
     EventService = None
 
+
+class PredictionThread(QThread):
+    """
+    Runs in the background, consuming frames from the CameraManager frame buffer,
+    running feature extraction and model inference, applying decision fusion,
+    and triggering asynchronous event storage.
+    """
+    prediction_ready = pyqtSignal(dict)
+
+    def __init__(self, manager, model, scaler, feature_order, optimal_threshold):
+        super().__init__()
+        self.manager = manager
+        self.model = model
+        self.scaler = scaler
+        self.feature_order = feature_order
+        self.optimal_threshold = optimal_threshold
+        
+        self.running = True
+        
+        from src.preprocessing.pipeline import PreprocessingPipeline
+        self.pipeline = PreprocessingPipeline()
+        self.frame_history = []
+        
+        from backend.tamper.classification_engine import TamperClassificationEngine
+        self.classification_engine = TamperClassificationEngine()
+        
+        self.event_service = EventService() if EventService else None
+
+    def run(self):
+        last_prediction_time = 0.0
+        while self.running:
+            if not self.manager or not self.manager.is_connected():
+                self.msleep(100)
+                continue
+                
+            frame = self.manager.get_latest_frame()
+            if frame is None:
+                self.msleep(30)
+                continue
+            
+            # Maintain the 15-frame history for temporal/ORB rules
+            if len(self.frame_history) == 0 or not np.array_equal(frame, self.frame_history[-1]):
+                self.frame_history.append(frame.copy())
+                if len(self.frame_history) > 15:
+                    self.frame_history.pop(0)
+
+            now = time.time()
+            # Predict every 300ms to remain highly responsive without overloading CPU
+            if len(self.frame_history) == 15 and (now - last_prediction_time) >= 0.3:
+                last_prediction_time = now
+                cycle_start = time.perf_counter()
+                try:
+                    # 1. Physics Feature Extraction
+                    feat_vec = self.pipeline.extract(self.frame_history)
+                    feat_dict = feat_vec.to_dict()
+                    
+                    # 2. Strict feature ordering DataFrame creation
+                    feat_vector = [feat_dict.get(f, 0.0) for f in self.feature_order]
+                    df = pd.DataFrame([feat_vector], columns=self.feature_order)
+                    
+                    # 3. Scaler transform
+                    feat_scaled = self.scaler.transform(df)
+                    
+                    # 4. ML Model Probability
+                    prob = float(self.model.predict_proba(feat_scaled)[0][1])
+                    
+                    # 5. Deterministic Rules
+                    tamper_type = self.classification_engine.classify(frame, self.frame_history)
+                    
+                    # Decision Fusion: triggers TAMPER if RF model agrees OR any custom rule triggers
+                    is_tamper = (prob >= self.optimal_threshold) or (tamper_type != "NORMAL")
+                    
+                    final_prediction = "TAMPERED" if is_tamper else "NORMAL"
+                    final_tamper_type = tamper_type if is_tamper else "NORMAL"
+                    
+                    # 6. Event persisting (non-blocking, queues background writes)
+                    screenshot_saved = "No"
+                    sidebar_updated = "No"
+                    if is_tamper and self.event_service:
+                        res = self.event_service.handle_detection(
+                            camera_name=self.manager.config.name,
+                            frame=frame,
+                            prob=prob,
+                            severity="HIGH" if prob > 0.9 else "MEDIUM",
+                            drift=float(prob),
+                            rule=final_tamper_type
+                        )
+                        if res is not None:
+                            screenshot_saved = "Yes"
+                            sidebar_updated = "Yes"
+
+                    latency_ms = (time.perf_counter() - cycle_start) * 1000
+                    
+                    # Structure logging output
+                    print(
+                        f"[Frame {self.manager.get_frame_count()}] | "
+                        f"Feats: {list(np.round(feat_vector, 4))} | "
+                        f"Scaled: {list(np.round(feat_scaled[0], 4))} | "
+                        f"Prob: {prob:.4f} | "
+                        f"Pred: {final_prediction} | "
+                        f"Tamper: {final_tamper_type} | "
+                        f"Latency: {latency_ms:.2f}ms | "
+                        f"Saved: {screenshot_saved} | "
+                        f"Sidebar: {sidebar_updated}"
+                    )
+
+                    result = {
+                        "prediction": final_prediction,
+                        "tamper_type": final_tamper_type,
+                        "probability": prob,
+                        "confidence": (prob if is_tamper else (1.0 - prob)) * 100.0,
+                        "frame": frame.copy()
+                    }
+                    self.prediction_ready.emit(result)
+                    
+                except Exception as e:
+                    print(f"[PredictionThread] Pipeline crash: {e}")
+                    traceback.print_exc()
+            
+            self.msleep(50)
+
+    def stop(self):
+        self.running = False
+        self.wait()
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -33,21 +167,25 @@ class MainWindow(QMainWindow):
         self.resize(1100, 650)
         
         self.manager = None
+        self.predict_thread = None
         self.frame_counter = 0
+        
         self.last_status_text = "CONNECTED"
         self.last_prob_text = ""
+        
         self.update_timer = QTimer(self)
         self.update_timer.timeout.connect(self._process_ui_frame)
         
-        # Initialize FeatureExtractor and ML models
-        self.extractor = FeatureExtractor() if FeatureExtractor else None
         self.event_service = EventService() if EventService else None
         self.model = None
         self.scaler = None
         self.optimal_threshold = 0.5
         self.feature_order = []
-        self._load_ml_model()
         
+        # In-memory history cache
+        self.recent_events_deque = deque(maxlen=50)
+        
+        self._load_ml_model()
         self.init_ui()
 
     def _load_ml_model(self):
@@ -80,25 +218,6 @@ class MainWindow(QMainWindow):
         except Exception as e:
             print(f"Error loading ML model in GUI: {e}")
 
-    def _save_tamper_snapshot(self, frame, prob, tamper_mode="LENS_COVER"):
-        if not self.event_service or frame is None:
-            return
-        try:
-            # Determine severity and rule based on simple checks
-            severity = "HIGH"
-            rule = tamper_mode
-            drift = 0.8
-            self.event_service.handle_detection(
-                camera_name=self.manager.config.name if self.manager else "GUI_Camera",
-                frame=frame,
-                prob=prob,
-                severity=severity,
-                drift=drift,
-                rule=rule
-            )
-        except Exception as e:
-            print(f"Failed to generate event snapshot: {e}")
-
     def init_ui(self):
         central_widget = QWidget(self)
         self.setCentralWidget(central_widget)
@@ -118,6 +237,45 @@ class MainWindow(QMainWindow):
         video_wrapper.addWidget(self.telemetry_label, stretch=0)
         
         main_layout.addLayout(video_wrapper, stretch=3)
+
+        # Right-hand Sidebar Layout
+        sidebar_widget = QWidget()
+        sidebar_layout = QVBoxLayout(sidebar_widget)
+        sidebar_widget.setFixedWidth(280)
+        sidebar_widget.setStyleSheet("background-color: #1a1a1a; border-left: 1px solid #333;")
+        
+        lbl_snap = QLabel("LATEST SNAPSHOT")
+        lbl_snap.setStyleSheet("font-weight: bold; color: #ff3333; font-family: Arial; font-size: 13px;")
+        sidebar_layout.addWidget(lbl_snap)
+        
+        self.screenshot_label = QLabel()
+        self.screenshot_label.setFixedSize(260, 150)
+        self.screenshot_label.setStyleSheet("background-color: #0d0d0d; border: 1px solid #444;")
+        self.screenshot_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.screenshot_label.setText("No snapshot yet")
+        sidebar_layout.addWidget(self.screenshot_label)
+        
+        lbl_events = QLabel("RECENT EVENTS HISTORY")
+        lbl_events.setStyleSheet("font-weight: bold; color: #aaa; font-family: Arial; font-size: 13px; margin-top: 15px;")
+        sidebar_layout.addWidget(lbl_events)
+        
+        self.event_list = QListWidget()
+        self.event_list.setStyleSheet("""
+            QListWidget {
+                background-color: #0d0d0d;
+                border: 1px solid #333;
+                color: #ddd;
+                font-family: Consolas, monospace;
+                font-size: 11px;
+            }
+            QListWidget::item {
+                border-bottom: 1px solid #222;
+                padding: 4px;
+            }
+        """)
+        sidebar_layout.addWidget(self.event_list)
+        
+        main_layout.addWidget(sidebar_widget, stretch=1)
 
     def _handle_connect(self, payload: dict):
         try:
@@ -140,24 +298,77 @@ class MainWindow(QMainWindow):
             try:
                 self.manager.connect()
             except Exception:
-                raw_url = f"rtsp://{config.username}:{config.password}@{config.ip_address}:{config.port}"
-                if target_brand == CameraBrand.HIKVISION: raw_url += "/Streaming/Channels/101"
-                elif target_brand in (CameraBrand.DAHUA, CameraBrand.CP_PLUS): raw_url += "/cam/realmonitor?channel=1&subtype=0"
-                elif target_brand == CameraBrand.AXIS: raw_url += "/axis-media/media.amp"
-                else: raw_url += config.stream_path
-                
-                self.manager.rtsp_url = raw_url
+                if not config.ip_address.strip().isdigit():
+                    raw_url = f"rtsp://{config.username}:{config.password}@{config.ip_address}:{config.port}"
+                    if target_brand == CameraBrand.HIKVISION: raw_url += "/Streaming/Channels/101"
+                    elif target_brand in (CameraBrand.DAHUA, CameraBrand.CP_PLUS): raw_url += "/cam/realmonitor?channel=1&subtype=0"
+                    elif target_brand == CameraBrand.AXIS: raw_url += "/axis-media/media.amp"
+                    else: raw_url += config.stream_path
+                    
+                    self.manager.rtsp_url = raw_url
                 self.manager.connect()
             
             self.control_deck.set_connected_state(True)
             self.frame_counter = 0
+            self.last_status_text = "NORMAL"
+            self.last_prob_text = " | Confidence: 100.0%"
+            
+            # Start background Prediction Thread
+            if self.model and self.scaler and self.feature_order:
+                self.predict_thread = PredictionThread(
+                    self.manager, self.model, self.scaler, self.feature_order, self.optimal_threshold
+                )
+                self.predict_thread.prediction_ready.connect(self._handle_prediction_update)
+                self.predict_thread.start()
+
             self.update_timer.start(33)
             
         except Exception as e:
             QMessageBox.critical(self, "Connection Failure", f"Error: {str(e)}")
             self._handle_disconnect()
 
+    def _handle_prediction_update(self, result: dict):
+        """Processes outputs from the background PredictionThread."""
+        pred = result["prediction"]
+        tamper_type = result["tamper_type"]
+        prob = result["probability"]
+        conf = result["confidence"]
+        frame = result["frame"]
+
+        self.last_status_text = f"{pred} ({tamper_type})"
+        self.last_prob_text = f" | Confidence: {conf:.1f}% (Prob: {prob:.2f})"
+
+        if pred == "TAMPERED":
+            self.telemetry_label.setStyleSheet("font-family: Consolas, monospace; padding: 5px; color: #ff3333; font-weight: bold; background-color: #330000;")
+            
+            # Add to local events list and update sidebar UI
+            ist_tz = timezone(timedelta(hours=5, minutes=30))
+            ts = datetime.now(ist_tz).strftime("%H:%M:%S")
+            evt_str = f"[{ts}] {tamper_type} (Conf: {conf:.1f}%)"
+            
+            if len(self.recent_events_deque) == 0 or self.recent_events_deque[-1] != evt_str:
+                self.recent_events_deque.append(evt_str)
+                self.event_list.clear()
+                # Display in reverse chronological order (newest on top)
+                for item in reversed(self.recent_events_deque):
+                    self.event_list.addItem(item)
+            
+            # Update snapshot thumbnail preview
+            try:
+                h_snap, w_snap = frame.shape[:2]
+                rgb_snap = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                q_img = QImage(rgb_snap.data, w_snap, h_snap, 3 * w_snap, QImage.Format.Format_RGB888)
+                pix = QPixmap.fromImage(q_img)
+                self.screenshot_label.setPixmap(
+                    pix.scaled(260, 150, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                )
+            except Exception as err:
+                print(f"Failed to update thumbnail: {err}")
+        else:
+            self.telemetry_label.setStyleSheet("font-family: Consolas, monospace; padding: 5px; color: #33ff33;")
+
     def _process_ui_frame(self):
+        """Runs in the main thread on QTimer ticks, performing fast UI updates."""
         if not self.manager:
             return
 
@@ -165,46 +376,10 @@ class MainWindow(QMainWindow):
         self.frame_counter += 1
         
         if frame is not None:
+            # Display frame immediately (already rotated in CameraManager worker thread)
             self.video_display.update_frame(frame)
             h, w = frame.shape[:2]
             res_str = f"{w}x{h}"
-            
-            # Predict every 15 frames to prevent UI lag (approx 2 FPS)
-            if self.frame_counter % 15 == 0 and self.extractor and self.model and self.scaler and self.feature_order:
-                try:
-                    feats = self.extractor.extract(frame)
-                    if feats:
-                        feat_vector = [feats.get(f, 0.0) for f in self.feature_order]
-                        feat_scaled = self.scaler.transform([feat_vector])
-                        prob = float(self.model.predict_proba(feat_scaled)[0][1])
-                        
-                        print(f"[GUI Predict] Features: {feat_vector}")
-                        print(f"[GUI Predict] Scaled: {feat_scaled[0].tolist()}")
-                        print(f"[GUI Predict] Prob: {prob:.4f} | Thresh: {self.optimal_threshold:.4f}")
-                        
-                        self.last_prob_text = f" | Prob: {prob:.2f} (Thresh: {self.optimal_threshold:.2f})"
-                        
-                        if prob >= self.optimal_threshold:
-                            lap = feats.get("laplacian_variance", 0.0)
-                            edge = feats.get("edge_density", 0.0)
-                            if lap < 15.0:
-                                tamper_mode = "HAND_COVER"
-                            elif lap < 350.0 and edge < 0.05:
-                                tamper_mode = "PAPER_COVER"
-                            elif lap < 600.0:
-                                tamper_mode = "HALF_COVER / BLUR"
-                            else:
-                                tamper_mode = "LENS_COVER"
-                                
-                            self.last_status_text = f"⚠️ TAMPER DETECTED! ({tamper_mode}) ⚠️"
-                            self.telemetry_label.setStyleSheet("font-family: Consolas, monospace; padding: 5px; color: #ff3333; font-weight: bold; background-color: #330000;")
-                            print(f"[ALERT] CAM TAMPER DETECTED! Mode: {tamper_mode} | Probability: {prob:.4f}")
-                            self._save_tamper_snapshot(frame, prob, tamper_mode)
-                        else:
-                            self.last_status_text = "NORMAL"
-                            self.telemetry_label.setStyleSheet("font-family: Consolas, monospace; padding: 5px; color: #33ff33;")
-                except Exception as e:
-                    print(f"Error in GUI feature extraction/prediction: {e}")
         else:
             res_str = "N/A"
 
@@ -217,7 +392,7 @@ class MainWindow(QMainWindow):
                 status_text = f"RECONNECTING (Attempt {self.manager.reconnect_attempts})..."
             else:
                 status_text = "LOSS OF SIGNAL"
-            self.telemetry_label.setStyleSheet("font-family: Consolas, monospace; padding: 5px; color: #ff9900;")
+            self.telemetry_label.setStyleSheet("font-family: Consolas, monospace; padding: 5px; color: #ff3333; font-weight: bold; background-color: #330000;")
         else:
             status_text = self.last_status_text
             
@@ -227,12 +402,22 @@ class MainWindow(QMainWindow):
 
     def _handle_disconnect(self):
         self.update_timer.stop()
+        
+        # Safely shut down background PredictThread
+        if self.predict_thread:
+            self.predict_thread.stop()
+            self.predict_thread = None
+
         if self.manager:
             self.manager.disconnect()
             self.manager = None
             
         self.video_display.clear_frame()
         self.control_deck.set_connected_state(False)
+        self.screenshot_label.clear()
+        self.screenshot_label.setText("No snapshot yet")
+        self.event_list.clear()
+        self.recent_events_deque.clear()
         self.telemetry_label.setStyleSheet("font-family: Consolas, monospace; padding: 5px; color: #aaa;")
         self.telemetry_label.setText("Status: DISCONNECTED | FPS: 0.00 | Resolution: N/A | Uptime: 0.0s | Time: --")
 

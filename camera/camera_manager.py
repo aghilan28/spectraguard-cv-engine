@@ -1,4 +1,4 @@
-﻿import time
+import time
 import threading
 import cv2
 from typing import Optional, Any
@@ -14,7 +14,12 @@ class CameraManager:
     def __init__(self, config: CameraConfig, brand: CameraBrand = CameraBrand.GENERIC):
         self.config = config
         self.brand = brand
-        self.rtsp_url = RTSPBuilder.build_url(config, brand)
+        
+        ip_str = config.ip_address.strip()
+        if ip_str.isdigit():
+            self.rtsp_url = int(ip_str)
+        else:
+            self.rtsp_url = RTSPBuilder.build_url(config, brand)
         
         self._buffer = FrameBuffer()
         self._cap: Optional[cv2.VideoCapture] = None
@@ -79,8 +84,8 @@ class CameraManager:
                 self._is_connected = False
                 continue
             
-            # Ceiling mount 180-degree hardware rotation correction
-            corrected_frame = cv2.rotate(frame, cv2.ROTATE_180)
+            # Ceiling mount rotation correction disabled (keep upright)
+            corrected_frame = frame
                 
             self._buffer.set_frame(corrected_frame)
             self._frame_count += 1

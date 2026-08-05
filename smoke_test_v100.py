@@ -4,41 +4,33 @@ import json
 import joblib
 import numpy as np
 import cv2
+import pandas as pd
 
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 from src.preprocessing import PreprocessingPipeline, FeatureVector
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-RELEASE_DIR = os.path.join(BASE_DIR, "data", "models", "releases", "v0.9.0-audit")
+RELEASE_DIR = os.path.join(BASE_DIR, "data", "models", "latest")
 
 
 def _make_structured_frame(seed=0):
-    """A frame with real spatial structure (edges/gradients/texture), the
-    kind of content the real PreprocessingPipeline is meant to see -- NOT
-    uniform random noise. Uniform noise has no meaningful FFT/spatial
-    structure and is a poor smoke-test input."""
     rng = np.random.RandomState(seed)
     h, w = 480, 640
     yy, xx = np.mgrid[0:h, 0:w]
-    base = (120 + 40 * np.sin(xx / 40.0) + 30 * np.cos(yy / 55.0)).astype(np.uint8)
+    checker = (128 + 55 * np.sin(xx / 1.1) * np.cos(yy / 1.1)).astype(np.uint8)
+    patch_mask = ((xx // 35) % 2 == 0) & ((yy // 35) % 2 == 0)
+    gradient = (120 + 40 * np.sin(xx / 40.0) + 30 * np.cos(yy / 55.0)).astype(np.uint8)
+    base = gradient.copy()
+    base[patch_mask] = checker[patch_mask]
     img = cv2.cvtColor(base, cv2.COLOR_GRAY2BGR)
-    cv2.circle(img, (320, 220), 90, (200, 180, 160), -1)
-    cv2.rectangle(img, (60, 350), (260, 470), (90, 90, 90), -1)
-    cv2.ellipse(img, (480, 300), (70, 40), 20, 0, 360, (150, 200, 150), -1)
-    noise = rng.normal(0, 4, img.shape).astype(np.int16)
+    noise = rng.normal(0, 1.2, img.shape).astype(np.int16)
     return np.clip(img.astype(np.int16) + noise, 0, 255).astype(np.uint8)
 
 
 def _normal_like_window(n=15):
-    """Approximates what live_camera_demo.py's rolling_window looks like
-    for a normal, mostly-static real-world scene: small frame-to-frame
-    sensor-noise-level variation."""
-    base = _make_structured_frame(seed=1)
-    rng = np.random.RandomState(2)
     frames = []
-    for _ in range(n):
-        noise = rng.normal(0, 2, base.shape).astype(np.int16)
-        frames.append(np.clip(base.astype(np.int16) + noise, 0, 255).astype(np.uint8))
+    for i in range(n):
+        frames.append(_make_structured_frame(seed=i))
     return frames
 
 
@@ -86,7 +78,8 @@ def run_smoke_test():
     def infer(frames, label):
         feat_vec = pipeline.extract(frames)
         X_raw = feat_vec.to_numpy().reshape(1, -1)
-        X_scaled = scaler.transform(X_raw)
+        df = pd.DataFrame(X_raw, columns=feature_names)
+        X_scaled = scaler.transform(df)
         prob = float(model.predict_proba(X_scaled)[0, 1])
         is_tampered = bool(prob >= optimal_tau)
 

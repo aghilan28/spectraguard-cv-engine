@@ -175,7 +175,10 @@ class ModelValidationService:
                             if len(ordered_vector) > expected_features: ordered_vector = ordered_vector[:expected_features]
                             else: ordered_vector.extend([0.0] * (expected_features - len(ordered_vector)))
                         
-                        scaled_vector = self.scaler.transform([ordered_vector])
+                        import pandas as pd
+                        cols = feature_order or getattr(self.model, 'feature_names_in_', None) or ["fft_low_ratio", "fft_mid_ratio", "fft_high_ratio", "log_total_energy", "laplacian_variance", "edge_density", "shannon_entropy", "temporal_difference"]
+                        df = pd.DataFrame([ordered_vector], columns=cols)
+                        scaled_vector = self.scaler.transform(df)
                         prediction = self.model.predict(scaled_vector)[0]
                         max_prob = float(np.max(self.model.predict_proba(scaled_vector)[0]))
                         

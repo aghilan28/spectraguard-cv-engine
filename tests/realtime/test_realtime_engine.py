@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 import time
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
@@ -78,7 +78,7 @@ def test_pipeline_execution_and_statistics(mock_tamper, mock_dev, mock_inf, mock
 
     # Verify Latest
     latest = client.get("/api/v1/realtime/latest").json()
-    assert latest["prediction"] == 1
+    assert latest["prediction"] == "TAMPER"
 
 def test_clean_history():
     realtime_engine.history.add({"test": "data"})

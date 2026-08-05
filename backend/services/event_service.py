@@ -2,6 +2,10 @@ import os
 import json
 import uuid
 import cv2
+import queue
+import threading
+import time
+import collections
 from datetime import datetime
 from pydantic import BaseModel
 from typing import Optional
@@ -18,42 +22,159 @@ class DetectionEvent(BaseModel):
     rule: str
 
 class NotificationProvider:
-    def send(self, message: str): raise NotImplementedError
+    def send(self, message: str): 
+        raise NotImplementedError
 
 class ConsoleProvider(NotificationProvider):
-    def send(self, message: str): print(f"[SMS ALERT] {message}")
+    def send(self, message: str): 
+        print(f"[SMS ALERT] {message}")
 
 class EventService:
+    _instance = None
+    _singleton_lock = threading.Lock()
+
+    def __new__(cls, *args, **kwargs):
+        with cls._singleton_lock:
+            if cls._instance is None:
+                cls._instance = super().__new__(cls, *args, **kwargs)
+                cls._instance._initialized = False
+            return cls._instance
+
     def __init__(self):
+        if self._initialized:
+            return
+        
         self.snapshots_dir = "storage/snapshots"
-        self.events_file = "storage/events/history.json"
+        self.events_root_dir = "storage/events"
         self.notifier = ConsoleProvider()
+        
         os.makedirs(self.snapshots_dir, exist_ok=True)
-        os.makedirs(os.path.dirname(self.events_file), exist_ok=True)
-        
+        os.makedirs(self.events_root_dir, exist_ok=True)
+
+        # In-memory history deque
+        self.history_deque = collections.deque(maxlen=50)
+        self.deque_lock = threading.Lock()
+
+        # Deduplication cache
+        self.last_triggered = {}  # key: (camera_name, rule) -> value: timestamp
+        self.cache_lock = threading.Lock()
+
+        # Threading queue & background worker
+        self.task_queue = queue.Queue()
+        self.worker_thread = threading.Thread(target=self._process_queue, daemon=True, name="EventWriterThread")
+        self.worker_thread.start()
+
+        self._initialized = True
+
     def handle_detection(self, camera_name, frame, prob, severity, drift, rule):
+        """
+        Public API: Thread-safe non-blocking event handler. 
+        Filters duplicates within 5 seconds and queues the frame/metadata for background disk writes.
+        """
+        if not isinstance(camera_name, str):
+            camera_name = str(camera_name)
+        if not isinstance(severity, str):
+            severity = str(severity)
+        if not isinstance(rule, str):
+            rule = str(rule)
+
+        now = time.time()
+        cache_key = (camera_name, rule)
+
+        with self.cache_lock:
+            last_time = self.last_triggered.get(cache_key, 0.0)
+            if now - last_time < 5.0:
+                # Deduplicate and silent skip to prevent spamming
+                return None
+            self.last_triggered[cache_key] = now
+
         event_id = str(uuid.uuid4())
-        ts = datetime.utcnow().strftime("%Y-%m-%d_%H-%M-%S")
-        
-        # Save Snapshot
-        snap_name = f"{camera_name}_{ts}_tamper_{event_id[:8]}.jpg"
+        # Capture current timestamps on the calling thread
+        ts_utc = datetime.utcnow()
+        ts_str = ts_utc.strftime("%Y-%m-%d_%H-%M-%S")
+        date_folder_name = ts_utc.strftime("%Y-%m-%d")
+
+        # Snapshot path metadata (generated now, written in background)
+        snap_name = f"{camera_name}_{ts_str}_tamper_{event_id[:8]}.jpg"
         snap_path = os.path.join(self.snapshots_dir, snap_name)
-        cv2.imwrite(snap_path, frame)
-        
-        # Create Event
+
+        # Create DetectionEvent object
         event = DetectionEvent(
-            uuid=event_id, camera_name=camera_name, timestamp=ts, prediction="Tamper",
-            probability=prob, severity=severity, snapshot_path=snap_path, drift_score=drift, rule=rule
+            uuid=event_id,
+            camera_name=camera_name,
+            timestamp=ts_str,
+            prediction="Tamper",
+            probability=prob,
+            severity=severity,
+            snapshot_path=snap_path,
+            drift_score=drift,
+            rule=rule
         )
-        
-        # Persist
-        events = []
-        if os.path.exists(self.events_file):
-            with open(self.events_file, 'r') as f: events = json.load(f)
-        events.append(event.dict())
-        with open(self.events_file, 'w') as f: json.dump(events, f, indent=2)
-            
-        # Notify
-        msg = f"TAMPER ALERT | Cam: {camera_name} | Time: {ts} | Sev: {severity}"
+
+        # Add to in-memory deque immediately for instant GUI display
+        with self.deque_lock:
+            self.history_deque.append(event.dict())
+
+        # Queue data for background disk IO (JPEG compression + JSON serialization)
+        # We pass a copy of the frame to prevent the caller thread from modifying it
+        frame_copy = frame.copy() if frame is not None else None
+        self.task_queue.put({
+            "event": event,
+            "frame": frame_copy,
+            "date_folder": date_folder_name,
+            "snap_path": snap_path
+        })
+
+        # Non-blocking return of event details
+        msg = f"TAMPER ALERT | Cam: {camera_name} | Time: {ts_str} | Sev: {severity} | Rule: {rule}"
         self.notifier.send(msg)
         return event
+
+    def _process_queue(self):
+        """Infinite worker loop executing file writes asynchronously."""
+        while True:
+            try:
+                task = self.task_queue.get()
+                if task is None:
+                    break
+
+                event = task["event"]
+                frame = task["frame"]
+                date_folder = task["date_folder"]
+                snap_path = task["snap_path"]
+
+                # 1. Asynchronously write JPEG frame
+                if frame is not None:
+                    try:
+                        cv2.imwrite(snap_path, frame)
+                    except Exception as e:
+                        print(f"[EventWriter] Failed to write snapshot frame: {e}")
+
+                # 2. Asynchronously write structured individual JSON
+                try:
+                    folder_path = os.path.join(self.events_root_dir, date_folder)
+                    os.makedirs(folder_path, exist_ok=True)
+                    
+                    event_json_name = f"event_{event.timestamp}_{event.uuid[:8]}.json"
+                    event_json_path = os.path.join(folder_path, event_json_name)
+
+                    with open(event_json_path, "w", encoding="utf-8") as f:
+                        json.dump(event.dict(), f, indent=2)
+
+                    # 3. Asynchronously update latest_event.json shortcut
+                    latest_path = os.path.join(self.events_root_dir, "latest_event.json")
+                    with open(latest_path, "w", encoding="utf-8") as f:
+                        json.dump(event.dict(), f, indent=2)
+
+                except Exception as e:
+                    print(f"[EventWriter] Failed to write event JSON: {e}")
+
+                self.task_queue.task_done()
+            except Exception as e:
+                print(f"[EventWriter] Fatal error in loop: {e}")
+                time.sleep(0.5)
+
+    def get_history(self) -> list:
+        """Thread-safe getter for in-memory deque history."""
+        with self.deque_lock:
+            return list(self.history_deque)

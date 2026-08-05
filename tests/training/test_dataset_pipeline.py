@@ -1,4 +1,4 @@
-﻿import os
+import os
 import sys
 from pathlib import Path
 
@@ -8,6 +8,7 @@ if root_path not in sys.path:
     sys.path.insert(0, root_path)
 
 import pytest
+
 import pandas as pd
 from training.label_encoder import LabelEncoder
 from training.dataset_validator import DatasetValidator
