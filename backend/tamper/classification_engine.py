@@ -93,9 +93,9 @@ class TamperClassificationEngine:
         edges = cv2.Canny(gray, 50, 150)
         edge_density = float(np.sum(edges > 0) / edges.size)
 
-        # Skin color detection for Hand Cover
+        # Skin color detection for Hand Cover (Strict saturation bounds to avoid desks/walls)
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        skin_mask = cv2.inRange(hsv, np.array([0, 30, 60]), np.array([20, 150, 255]))
+        skin_mask = cv2.inRange(hsv, np.array([0, 80, 60]), np.array([20, 180, 255]))
         skin_ratio = float(np.sum(skin_mask > 0) / skin_mask.size)
 
         # Spatial Imbalance (Left/Right half, Top/Bottom half)
@@ -109,21 +109,13 @@ class TamperClassificationEngine:
         top_black = float(np.sum(top_half < 25) / top_half.size)
         bottom_black = float(np.sum(bottom_half < 25) / bottom_half.size)
 
+        # Strict half covered check (must be heavily dark on one side and clean on the other)
         is_half_covered = (
-            (left_black > 0.40 and right_black < 0.15) or 
-            (right_black > 0.40 and left_black < 0.15) or
-            (top_black > 0.40 and bottom_black < 0.15) or
-            (bottom_black > 0.40 and top_black < 0.15)
+            (left_black > 0.70 and right_black < 0.08) or 
+            (right_black > 0.70 and left_black < 0.08) or
+            (top_black > 0.70 and bottom_black < 0.08) or
+            (bottom_black > 0.70 and top_black < 0.08)
         )
-
-        # Quadrant Occlusion (each quadrant is 25% of image)
-        quadrants = [
-            gray[:h//2, :w//2],
-            gray[:h//2, w//2:],
-            gray[h//2:, :w//2],
-            gray[h//2:, w//2:]
-        ]
-        quadrant_blacks = [float(np.sum(q < 25) / q.size) for q in quadrants]
 
         # consecutive frame differences to detect freeze
         is_frozen_stream = False
@@ -147,15 +139,15 @@ class TamperClassificationEngine:
         # RULE HIERARCHY
         # ==========================================
 
-        # 1. Total blackout Darkness Attack (Case 8: solid 5)
+        # 1. Total blackout Darkness Attack (Case 8)
         if mean_intensity < 10.0:
             return "DARKNESS_ATTACK"
 
-        # 2. Total blinded Brightness Attack (Case 7: solid 245)
+        # 2. Total blinded Brightness Attack (Case 7)
         if mean_intensity > 240.0:
             return "BRIGHTNESS_ATTACK"
 
-        # 3. Paper Cover (Case 2: solid 15 - has intermediate value > 10, low entropy, low Laplacian)
+        # 3. Paper Cover (Case 2: low entropy, low Laplacian)
         if (black_ratio > 0.85 or white_ratio > 0.85) and entropy < 2.5 and laplacian_var < 15.0:
             return "PAPER_COVER"
 
@@ -167,7 +159,7 @@ class TamperClassificationEngine:
         if mean_intensity > 235.0:
             return "BRIGHTNESS_ATTACK"
 
-        # 6. Half Cover (checked before Hand Cover)
+        # 6. Half Cover
         if is_half_covered:
             return "HALF_COVER"
 
@@ -175,13 +167,8 @@ class TamperClassificationEngine:
         if is_frozen_stream:
             return "VIDEO_FREEZE"
 
-        # 8. Hand Cover
-        if skin_ratio > 0.20:
-            return "HAND_COVER"
-        
-        any_quad_covered = any(qb > 0.70 for qb in quadrant_blacks)
-        all_quads_covered = all(qb > 0.70 for qb in quadrant_blacks)
-        if any_quad_covered and not all_quads_covered:
+        # 8. Hand Cover (Triggered only when significant skin density is observed)
+        if skin_ratio > 0.24:
             return "HAND_COVER"
 
         # 9. Camera Moved (ORB Homography translation)
