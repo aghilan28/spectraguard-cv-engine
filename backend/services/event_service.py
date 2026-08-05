@@ -10,6 +10,32 @@ from datetime import datetime
 from pydantic import BaseModel
 from typing import Optional
 
+def to_standard_taxonomy(name: str) -> str:
+    """Maps internal backend physical classifications to the strict 12-class taxonomy vocabulary."""
+    mapping = {
+        "LENS_COVER": "FULL_LENS_COVER",
+        "LENS_SPRAY": "BLUR_ATTACK",
+        "DEFOCUS": "DEFOCUS",
+        "CAMERA_MOVED": "CAMERA_MOVED",
+        "FLASH_ATTACK": "BRIGHTNESS_ATTACK",
+        "DARKNESS": "DARKNESS_ATTACK",
+        "OVEREXPOSURE": "BRIGHTNESS_ATTACK",
+        "VIDEO_FREEZE": "VIDEO_FREEZE",
+        "HEAVY_NOISE": "NOISE_ATTACK",
+        "PARTIAL_OCCLUSION": "PARTIAL_LENS_COVER",
+        "UNKNOWN_ANOMALY": "FULL_LENS_COVER",
+        "NORMAL": "NORMAL",
+        "HAND_COVER": "HAND_COVER",
+        "CAMERA_REDIRECTED": "CAMERA_REDIRECTED",
+        "BLUR_ATTACK": "BLUR_ATTACK",
+        "BRIGHTNESS_ATTACK": "BRIGHTNESS_ATTACK",
+        "DARKNESS_ATTACK": "DARKNESS_ATTACK",
+        "NOISE_ATTACK": "NOISE_ATTACK",
+        "FULL_LENS_COVER": "FULL_LENS_COVER",
+        "PARTIAL_LENS_COVER": "PARTIAL_LENS_COVER"
+    }
+    return mapping.get(name, "NORMAL")
+
 class DetectionEvent(BaseModel):
     uuid: str
     camera_name: str
@@ -20,6 +46,11 @@ class DetectionEvent(BaseModel):
     snapshot_path: Optional[str]
     drift_score: float
     rule: str
+    
+    # Standardized Taxonomy additions
+    event_id: str
+    tamper_type: str
+    confidence: float
 
 class NotificationProvider:
     def send(self, message: str): 
@@ -78,8 +109,11 @@ class EventService:
         if not isinstance(rule, str):
             rule = str(rule)
 
+        # Map to standard taxonomy immediately
+        std_rule = to_standard_taxonomy(rule)
+
         now = time.time()
-        cache_key = (camera_name, rule)
+        cache_key = (camera_name, std_rule)
 
         with self.cache_lock:
             last_time = self.last_triggered.get(cache_key, 0.0)
@@ -108,7 +142,10 @@ class EventService:
             severity=severity,
             snapshot_path=snap_path,
             drift_score=drift,
-            rule=rule
+            rule=std_rule,
+            event_id=event_id,
+            tamper_type=std_rule,
+            confidence=round(prob * 100.0, 2)
         )
 
         # Add to in-memory deque immediately for instant GUI display
@@ -126,7 +163,7 @@ class EventService:
         })
 
         # Non-blocking return of event details
-        msg = f"TAMPER ALERT | Cam: {camera_name} | Time: {ts_str} | Sev: {severity} | Rule: {rule}"
+        msg = f"TAMPER ALERT | Cam: {camera_name} | Time: {ts_str} | Sev: {severity} | Rule: {std_rule}"
         self.notifier.send(msg)
         return event
 

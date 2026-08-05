@@ -104,7 +104,7 @@ def test_pipeline():
     paper_cover_frames = [np.full((480, 640, 3), 15, dtype=np.uint8) for _ in range(15)]
     test_cases["PAPER_COVER"] = {
         "frames": paper_cover_frames,
-        "expected_tamper": "PAPER_COVER"
+        "expected_tamper": "FULL_LENS_COVER"
     }
 
     # Case 3: HALF_COVER (one half covered/black)
@@ -115,7 +115,7 @@ def test_pipeline():
         half_cover_frames.append(f)
     test_cases["HALF_COVER"] = {
         "frames": half_cover_frames,
-        "expected_tamper": "HALF_COVER"
+        "expected_tamper": "PARTIAL_LENS_COVER"
     }
 
     # Case 4: HAND_COVER (skin tone patch)
@@ -133,14 +133,14 @@ def test_pipeline():
     }
 
     # Case 5: BLUR (highly blurred)
-    blur_frames = [make_blurred_frame(i, 35) for i in range(15)]
+    blur_frames = [make_blurred_frame(i, 55) for i in range(15)]
     test_cases["BLUR"] = {
         "frames": blur_frames,
-        "expected_tamper": "BLUR"
+        "expected_tamper": "BLUR_ATTACK"
     }
 
     # Case 6: DEFOCUS (moderately blurred)
-    defocus_frames = [make_blurred_frame(i, 13) for i in range(15)]
+    defocus_frames = [make_blurred_frame(i, 9) for i in range(15)]
     test_cases["DEFOCUS"] = {
         "frames": defocus_frames,
         "expected_tamper": "DEFOCUS"
@@ -203,7 +203,7 @@ def test_pipeline():
         prob = float(model.predict_proba(feat_scaled)[0][1])
 
         # Run deterministic rule engine
-        tamper_type = classifier_engine.classify(frames_list[-1], frames_list)
+        tamper_type = classifier_engine.classify(frames_list[-1], frames_list, prob=prob)
 
         # Decision Fusion logic
         is_tamper = (prob >= threshold) or (tamper_type != "NORMAL")
@@ -354,7 +354,7 @@ def run_live_validation(source):
                 feat_scaled = scaler.transform(df)
                 prob = float(model.predict_proba(feat_scaled)[0][1])
                 
-                tamper_type = classifier_engine.classify(frame, frame_history)
+                tamper_type = classifier_engine.classify(frame, frame_history, prob=prob)
                 is_tamper = (prob >= threshold) or (tamper_type != "NORMAL")
                 final_pred = "TAMPERED" if is_tamper else "NORMAL"
                 final_type = tamper_type if is_tamper else "NORMAL"

@@ -11,7 +11,7 @@ from datetime import datetime, timezone, timedelta
 from collections import deque
 
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, 
-                             QLabel, QFrame, QMessageBox, QListWidget)
+                             QLabel, QFrame, QMessageBox, QListWidget, QPushButton)
 from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal
 from PyQt6.QtGui import QImage, QPixmap
 
@@ -101,13 +101,39 @@ class PredictionThread(QThread):
                     prob = float(self.model.predict_proba(feat_scaled)[0][1])
                     
                     # 5. Deterministic Rules
-                    tamper_type = self.classification_engine.classify(frame, self.frame_history)
+                    tamper_type = self.classification_engine.classify(frame, self.frame_history, prob=prob)
                     
                     # Decision Fusion: triggers TAMPER if RF model agrees OR any custom rule triggers
                     is_tamper = (prob >= self.optimal_threshold) or (tamper_type != "NORMAL")
                     
                     final_prediction = "TAMPERED" if is_tamper else "NORMAL"
                     final_tamper_type = tamper_type if is_tamper else "NORMAL"
+                    
+                    if is_tamper and final_tamper_type in ["NORMAL", "UNKNOWN_ANOMALY"]:
+                        if prob < 0.70:
+                            # Downgrade low-probability alerts with no physical rule triggers to NORMAL
+                            final_prediction = "NORMAL"
+                            final_tamper_type = "NORMAL"
+                            is_tamper = False
+                        else:
+                            lap_var = feat_dict.get("laplacian_variance", 999.0)
+                            ent = feat_dict.get("shannon_entropy", 8.0)
+                            edg = feat_dict.get("edge_density", 1.0)
+                            mean_val = float(np.mean(frame))
+                            white_ratio = float(np.sum(frame > 230) / frame.size)
+                            
+                            if lap_var < 35.0:
+                                final_tamper_type = "BLUR_ATTACK"
+                            elif lap_var < 95.0:
+                                final_tamper_type = "DEFOCUS"
+                            elif mean_val < 30.0:
+                                final_tamper_type = "DARKNESS_ATTACK"
+                            elif mean_val > 180.0 or white_ratio > 0.15:
+                                final_tamper_type = "BRIGHTNESS_ATTACK"
+                            elif ent < 3.8 or edg < 0.05:
+                                final_tamper_type = "FULL_LENS_COVER"
+                            else:
+                                final_tamper_type = "PARTIAL_LENS_COVER"
                     
                     # 6. Event persisting (non-blocking, queues background writes)
                     screenshot_saved = "No"
@@ -273,7 +299,26 @@ class MainWindow(QMainWindow):
                 padding: 4px;
             }
         """)
+        self.event_list.itemClicked.connect(self._handle_event_click)
         sidebar_layout.addWidget(self.event_list)
+
+        btn_open = QPushButton("Open Snapshots Folder")
+        btn_open.setStyleSheet("""
+            QPushButton {
+                background-color: #2b2b2b;
+                border: 1px solid #444;
+                color: #ddd;
+                padding: 6px;
+                font-family: Arial;
+                font-size: 11px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #383838;
+            }
+        """)
+        btn_open.clicked.connect(self._open_snapshots_folder)
+        sidebar_layout.addWidget(btn_open)
         
         main_layout.addWidget(sidebar_widget, stretch=1)
 
@@ -420,6 +465,33 @@ class MainWindow(QMainWindow):
         self.recent_events_deque.clear()
         self.telemetry_label.setStyleSheet("font-family: Consolas, monospace; padding: 5px; color: #aaa;")
         self.telemetry_label.setText("Status: DISCONNECTED | FPS: 0.00 | Resolution: N/A | Uptime: 0.0s | Time: --")
+
+    def _handle_event_click(self, item):
+        try:
+            if not self.event_service:
+                return
+            row = self.event_list.row(item)
+            events = self.event_service.get_history()
+            if not events:
+                return
+            idx = len(events) - 1 - row
+            if 0 <= idx < len(events):
+                evt = events[idx]
+                snap_path = evt.get("snapshot_path")
+                if snap_path and os.path.exists(snap_path):
+                    pix = QPixmap(snap_path)
+                    self.screenshot_label.setPixmap(
+                        pix.scaled(260, 150, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                    )
+        except Exception as e:
+            print(f"Failed to display event snapshot: {e}")
+
+    def _open_snapshots_folder(self):
+        try:
+            os.makedirs("storage/snapshots", exist_ok=True)
+            os.startfile(os.path.abspath("storage/snapshots"))
+        except Exception as e:
+            print(f"Failed to open snapshots directory: {e}")
 
     def closeEvent(self, event):
         self._handle_disconnect()
