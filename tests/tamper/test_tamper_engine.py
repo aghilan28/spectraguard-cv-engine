@@ -1,4 +1,4 @@
-﻿"""
+"""
 Deterministic behavior tests asserting absolute matrix rule evaluations.
 """
 import pytest
@@ -54,3 +54,31 @@ def test_orchestration_engine():
     assert event.tamper_type == "VIDEO_FREEZE"
     assert event.severity == "HIGH"
     assert event.explanation != ""
+
+def test_classification_engine_fallbacks():
+    import numpy as np
+    from backend.tamper.classification_engine import TamperClassificationEngine
+    engine = TamperClassificationEngine()
+    
+    # Create a dummy normal/neutral frame with random noise to avoid triggering FULL_LENS_COVER/BLUR
+    np.random.seed(42)
+    frame = np.random.randint(0, 256, (480, 640, 3), dtype=np.uint8)
+    
+    # If prob is low (<0.50), classification should return NORMAL
+    label_normal = engine.classify(frame, [], prob=0.10)
+    assert label_normal == "NORMAL"
+    
+    # If prob is high (>=0.50) but rules are inconclusive, fallback should return UNKNOWN_ANOMALY
+    label_unknown = engine.classify(frame, [], prob=0.85)
+    assert label_unknown == "UNKNOWN_ANOMALY"
+
+def test_evaluate_motion_stationary():
+    import numpy as np
+    from backend.tamper.classification_engine import TamperClassificationEngine
+    engine = TamperClassificationEngine()
+    
+    # Test identical frames (zero shift)
+    frame = np.ones((480, 640, 3), dtype=np.uint8) * 128
+    moved, shift = engine.evaluate_motion(frame, frame)
+    assert not moved
+    assert shift == 0.0

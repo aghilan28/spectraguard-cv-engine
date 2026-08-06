@@ -23,7 +23,7 @@ def to_standard_taxonomy(name: str) -> str:
         "VIDEO_FREEZE": "VIDEO_FREEZE",
         "HEAVY_NOISE": "NOISE_ATTACK",
         "PARTIAL_OCCLUSION": "PARTIAL_LENS_COVER",
-        "UNKNOWN_ANOMALY": "FULL_LENS_COVER",
+        "UNKNOWN_ANOMALY": "UNKNOWN_TAMPER",
         "NORMAL": "NORMAL",
         "HAND_COVER": "HAND_COVER",
         "CAMERA_REDIRECTED": "CAMERA_REDIRECTED",
@@ -32,7 +32,16 @@ def to_standard_taxonomy(name: str) -> str:
         "DARKNESS_ATTACK": "DARKNESS_ATTACK",
         "NOISE_ATTACK": "NOISE_ATTACK",
         "FULL_LENS_COVER": "FULL_LENS_COVER",
-        "PARTIAL_LENS_COVER": "PARTIAL_LENS_COVER"
+        "PARTIAL_LENS_COVER": "PARTIAL_LENS_COVER",
+        "UNKNOWN_TAMPER": "UNKNOWN_TAMPER",
+        "CONTRAST_HIGH": "CONTRAST_HIGH",
+        "CONTRAST_LOW": "CONTRAST_LOW",
+        "SHARPNESS_HIGH": "SHARPNESS_HIGH",
+        "SHARPNESS_LOW": "SHARPNESS_LOW",
+        "SATURATION_HIGH": "SATURATION_HIGH",
+        "SATURATION_LOW": "SATURATION_LOW",
+        "COLOR_DISTORTION": "COLOR_DISTORTION",
+        "CAMERA_ROTATED": "CAMERA_ROTATED"
     }
     return mapping.get(name, "NORMAL")
 
@@ -116,10 +125,32 @@ class EventService:
 
         self._initialized = True
 
+    def _load_history_from_disk(self):
+        try:
+            events = []
+            if os.path.exists(self.events_root_dir):
+                for root, dirs, files in os.walk(self.events_root_dir):
+                    for file in files:
+                        if file.startswith("event_") and file.endswith(".json"):
+                            path = os.path.join(root, file)
+                            try:
+                                with open(path, "r", encoding="utf-8") as f:
+                                    evt = json.load(f)
+                                    if evt.get("camera_name") != "test_cam":
+                                        events.append(evt)
+                            except Exception:
+                                pass
+            events.sort(key=lambda x: x.get("timestamp", ""), reverse=False)
+            for evt in events[-50:]:
+                self.history_deque.append(evt)
+            print(f"[EventService] Loaded {len(self.history_deque)} historical events from disk.")
+        except Exception as e:
+            print(f"[EventService] Failed to load history from disk: {e}")
+
     def handle_detection(self, camera_name, frame, prob, severity, drift, rule):
         """
         Public API: Thread-safe non-blocking event handler. 
-        Filters duplicates within 5 seconds and queues the frame/metadata for background disk writes.
+        Filters duplicates within 1.5 seconds and queues the frame/metadata for background disk writes.
         """
         if not isinstance(camera_name, str):
             camera_name = str(camera_name)
@@ -136,7 +167,7 @@ class EventService:
 
         with self.cache_lock:
             last_time = self.last_triggered.get(cache_key, 0.0)
-            if now - last_time < 5.0:
+            if now - last_time < 1.5:
                 # Deduplicate and silent skip to prevent spamming
                 return None
             self.last_triggered[cache_key] = now

@@ -61,6 +61,12 @@ class PredictionThread(QThread):
         self.classification_engine = TamperClassificationEngine()
         
         self.event_service = EventService() if EventService else None
+        
+        # State tracking for hysteresis and temporal confirmation
+        self.consecutive_tamper_count = 0
+        self.is_currently_tampered = False
+        self.active_tamper_event_sent = False
+        self.last_sent_tamper_type = None
 
     def run(self):
         last_prediction_time = 0.0
@@ -73,6 +79,7 @@ class PredictionThread(QThread):
             if frame is None:
                 self.msleep(30)
                 continue
+            frame = frame.copy()
             
             # Maintain the 15-frame history for temporal/ORB rules
             if len(self.frame_history) == 0 or not np.array_equal(frame, self.frame_history[-1]):
@@ -100,50 +107,62 @@ class PredictionThread(QThread):
                     # 4. ML Model Probability
                     prob = float(self.model.predict_proba(feat_scaled)[0][1])
                     
-                    # 5. Deterministic Rules
-                    tamper_type = self.classification_engine.classify(frame, self.frame_history, prob=prob)
-                    
-                    # Decision Fusion: triggers TAMPER if RF model agrees OR any custom rule triggers
-                    is_tamper = (prob >= self.optimal_threshold) or (tamper_type != "NORMAL")
-                    
-                    final_prediction = "TAMPERED" if is_tamper else "NORMAL"
-                    final_tamper_type = tamper_type if is_tamper else "NORMAL"
-                    
-                    if is_tamper and final_tamper_type in ["NORMAL", "UNKNOWN_ANOMALY"]:
-                        if prob < 0.70:
-                            # Downgrade low-probability alerts with no physical rule triggers to NORMAL
+                    threshold = self.optimal_threshold
+                    margin = 0.10
+                    exit_threshold = threshold - margin
+
+                    # 1. State transition using hysteresis and physical validation
+                    candidate_type = self.classification_engine.classify(frame, self.frame_history, prob=prob)
+
+                    if self.is_currently_tampered:
+                        if prob < exit_threshold or candidate_type == "NORMAL":
+                            self.is_currently_tampered = False
+                            self.consecutive_tamper_count = 0
+                            self.active_tamper_event_sent = False
+                            self.last_sent_tamper_type = None
                             final_prediction = "NORMAL"
                             final_tamper_type = "NORMAL"
                             is_tamper = False
+                            severity = "LOW"
                         else:
-                            lap_var = feat_dict.get("laplacian_variance", 999.0)
-                            ent = feat_dict.get("shannon_entropy", 8.0)
-                            edg = feat_dict.get("edge_density", 1.0)
-                            mean_val = float(np.mean(frame))
-                            white_ratio = float(np.sum(frame > 230) / frame.size)
-                            
-                            if lap_var < 35.0:
-                                final_tamper_type = "BLUR_ATTACK"
-                            elif lap_var < 95.0:
-                                final_tamper_type = "DEFOCUS"
-                            elif mean_val < 30.0:
-                                final_tamper_type = "DARKNESS_ATTACK"
-                            elif mean_val > 180.0 or white_ratio > 0.15:
-                                final_tamper_type = "BRIGHTNESS_ATTACK"
-                            elif ent < 3.8 or edg < 0.05:
-                                final_tamper_type = "FULL_LENS_COVER"
-                            else:
-                                final_tamper_type = "PARTIAL_LENS_COVER"
+                            self.consecutive_tamper_count += 1
+                            final_prediction = "TAMPERED"
+                            final_tamper_type = candidate_type
+                            is_tamper = True
+                            severity = "HIGH" if prob > 0.90 else "MEDIUM"
+                    else:
+                        if prob >= threshold and candidate_type != "NORMAL":
+                            self.is_currently_tampered = True
+                            self.consecutive_tamper_count = 1
+                            final_prediction = "TAMPERED"
+                            final_tamper_type = candidate_type
+                            is_tamper = True
+                            severity = "HIGH" if prob > 0.90 else "MEDIUM"
+                        else:
+                            self.consecutive_tamper_count = 0
+                            self.active_tamper_event_sent = False
+                            self.last_sent_tamper_type = None
+                            final_prediction = "NORMAL"
+                            final_tamper_type = "NORMAL"
+                            is_tamper = False
+                            severity = "LOW"
                     
-                    # 6. Event persisting (non-blocking, queues background writes)
+                    # 6. Event persisting (Requires 5 consecutive tampered frames before generating ONE event)
                     screenshot_saved = "No"
                     sidebar_updated = "No"
-                    if is_tamper and self.event_service:
+                    
+                    should_trigger_event = (self.is_currently_tampered and 
+                                            self.consecutive_tamper_count >= 5 and 
+                                            (not self.active_tamper_event_sent or final_tamper_type != self.last_sent_tamper_type))
+
+                    if should_trigger_event and self.event_service:
+                        self.active_tamper_event_sent = True
+                        self.last_sent_tamper_type = final_tamper_type
                         res = self.event_service.handle_detection(
                             camera_name=self.manager.config.name,
                             frame=frame,
                             prob=prob,
-                            severity="HIGH" if prob > 0.9 else "MEDIUM",
+                            severity=severity,
                             drift=float(prob),
                             rule=final_tamper_type
                         )
@@ -153,17 +172,44 @@ class PredictionThread(QThread):
 
                     latency_ms = (time.perf_counter() - cycle_start) * 1000
                     
-                    # Structure logging output
+                    # Calculate metric checks for explainable print
+                    gray_dbg = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                    black_ratio_dbg = float(np.sum(gray_dbg < 25) / gray_dbg.size)
+                    white_ratio_dbg = float(np.sum(gray_dbg > 230) / gray_dbg.size)
+                    hist_dbg, _ = np.histogram(gray_dbg.ravel(), bins=256, range=(0, 256))
+                    prob_dist_dbg = hist_dbg / (hist_dbg.sum() + 1e-12)
+                    prob_dist_dbg = prob_dist_dbg[prob_dist_dbg > 0]
+                    entropy_dbg = float(-np.sum(prob_dist_dbg * np.log2(prob_dist_dbg + 1e-12))) if len(prob_dist_dbg) > 0 else 0.0
+                    laplacian_var_dbg = float(cv2.Laplacian(gray_dbg, cv2.CV_64F).var())
+                    edge_density_dbg = float(np.sum(cv2.Canny(gray_dbg, 50, 150) > 0) / gray_dbg.size)
+                    
+                    h_dbg, w_dbg = gray_dbg.shape
+                    h_grid_dbg, w_grid_dbg = h_dbg // 8, w_dbg // 8
+                    flat_blocks_dbg = 0
+                    for r in range(8):
+                        for c in range(8):
+                            block = gray_dbg[r*h_grid_dbg : (r+1)*h_grid_dbg, c*w_grid_dbg : (c+1)*w_grid_dbg]
+                            if np.std(block) < 10.0:
+                                flat_blocks_dbg += 1
+                    flat_ratio_dbg = flat_blocks_dbg / 64.0
+                    
+                    t = self.classification_engine.thresholds
+                    
+                    entropy_pass = "PASS" if entropy_dbg < t["entropy_limit"] else "FAIL"
+                    edge_pass = "PASS" if edge_density_dbg < t["edge_density_limit"] else "FAIL"
+                    blur_pass = "PASS" if laplacian_var_dbg < t["laplacian_blur_limit"] else "FAIL"
+                    occl_pass = "PASS" if (0.25 <= flat_ratio_dbg <= 0.85) else "FAIL"
+                    
                     print(
-                        f"[Frame {self.manager.get_frame_count()}] | "
-                        f"Feats: {list(np.round(feat_vector, 4))} | "
-                        f"Scaled: {list(np.round(feat_scaled[0], 4))} | "
-                        f"Prob: {prob:.4f} | "
-                        f"Pred: {final_prediction} | "
-                        f"Tamper: {final_tamper_type} | "
-                        f"Latency: {latency_ms:.2f}ms | "
-                        f"Saved: {screenshot_saved} | "
-                        f"Sidebar: {sidebar_updated}"
+                        f"\n=== EXPLAINABLE DEBUG OVERLAY ==="
+                        f"\nRF Probability: {prob:.4f} (Threshold: {threshold:.4f})"
+                        f"\n  - Entropy: {entropy_dbg:.2f} (Limit < {t['entropy_limit']}) -> {entropy_pass}"
+                        f"\n  - Edge Density: {edge_density_dbg:.4f} (Limit < {t['edge_density_limit']}) -> {edge_pass}"
+                        f"\n  - Blur (Laplacian Var): {laplacian_var_dbg:.2f} (Limit < {t['laplacian_blur_limit']}) -> {blur_pass}"
+                        f"\n  - Occlusion (8x8 Grid Flat): {flat_ratio_dbg:.2f} (Range 0.25-0.85) -> {occl_pass}"
+                        f"\n  - Black Ratio: {black_ratio_dbg:.4f} | White Ratio: {white_ratio_dbg:.4f}"
+                        f"\nDecision: {final_tamper_type} | Consecutive Count: {self.consecutive_tamper_count}"
+                        f"\n=================================\n"
                     )
 
                     result = {

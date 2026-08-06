@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>SpectraGuard V2 Feature Separability Analysis</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: #0b0f19;
+            color: #e2e8f0;
+            margin: 0;
+            padding: 40px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #38bdf8;
+            font-size: 2.5rem;
+            margin-bottom: 5px;
+            font-weight: 700;
+        }
+        p.subtitle {
+            color: #94a3b8;
+            margin-top: 0;
+            margin-bottom: 40px;
+            font-size: 1.1rem;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+        .card {
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
+            margin-bottom: 30px;
+        }
+        .card h2 {
+            color: #f1f5f9;
+            font-size: 1.5rem;
+            margin-top: 0;
+            margin-bottom: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding-bottom: 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            margin-bottom: 20px;
+        }
+        th, td {
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        th {
+            color: #38bdf8;
+            font-weight: 600;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .progress-bar-bg {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            height: 12px;
+            overflow: hidden;
+            width: 100%;
+        }
+        .progress-bar {
+            background: linear-gradient(90deg, #38bdf8, #818cf8);
+            height: 100%;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>SpectraGuard V2 Feature Separability Report</h1>
+        <p class="subtitle">Fisher Score Analysis and Correlation Matrix of Core Spatial and Spectral Features</p>
+        
+        <div class="grid">
+            
+        <div class="card">
+            <h2>NORMAL vs. BLUR</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 40%;">Feature</th>
+                        <th style="width: 20%;">Fisher Score</th>
+                        <th>Separability Strength</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+            <tr>
+                <td><code>edge_density</code></td>
+                <td>4.5455</td>
+                <td>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar" style="width: 45.455427625403004%;"></div>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td><code>laplacian_variance</code></td>
+                <td>2.4738</td>
+                <td>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar" style="width: 24.738018772065207%;"></div>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td><code>fft_low_ratio</code></td>
+                <td>0.5555</td>
+                <td>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar" style="width: 5.5550862475297045%;"></div>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td><code>fft_mid_ratio</code></td>
+                <td>0.2869</td>
+                <td>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar" style="width: 2.86940771442391%;"></div>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td><code>fft_high_ratio</code></td>
+                <td>0.1214</td>
+                <td>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar" style="width: 1.2135109678491216%;"></div>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td><code>shannon_entropy</code></td>
+                <td>0.0776</td>
+                <td>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar" style="width: 0.7763638482245925%;"></div>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td><code>log_total_energy</code></td>
+                <td>0.0478</td>
+                <td>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar" style="width: 0.47764751007769835%;"></div>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td><code>temporal_difference</code></td>
+                <td>0.0028</td>
+                <td>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar" style="width: 0.027560335465739667%;"></div>
+                    </div>
+                </td>
+            </tr>
+            
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="card">
+            <h2>NORMAL vs. CAMERA_MOVED</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 40%;">Feature</th>
+                        <th style="width: 20%;">Fisher Score</th>
+                        <th>Separability Strength</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+            <tr>
+                <td><code>temporal_difference</code></td>
+                <td>3.6412</td>
+                <td>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar" style="width: 36.41232148941773%;"></div>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td><code>edge_density</code></td>
+                <td>0.9245</td>
+                <td>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar" style="width: 9.2453080653426%;"></div>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td><code>laplacian_variance</code></td>
+                <td>0.7687</td>
+                <td>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar" style="width: 7.686950146569337%;"></div>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td><code>fft_high_ratio</code></td>
+                <td>0.7039</td>
+                <td>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar" style="width: 7.039432472728776%;"></div>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td><code>fft_low_ratio</code></td>
+                <td>0.0439</td>
+                <td>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar" style="width: 0.4392673978134226%;"></div>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td><code>shannon_entropy</code></td>
+                <td>0.0296</td>
+                <td>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar" style="width: 0.2963249349657927%;"></div>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td><code>log_total_energy</code></td>
+                <td>0.0265</td>
+                <td>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar" style="width: 0.26500461063454706%;"></div>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td><code>fft_mid_ratio</code></td>
+                <td>0.0010</td>
+                <td>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar" style="width: 0.009515419098069208%;"></div>
+                    </div>
+                </td>
+            </tr>
+            
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="card">
+            <h2>NORMAL vs. HAND_COVER</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 40%;">Feature</th>
+                        <th style="width: 20%;">Fisher Score</th>
+                        <th>Separability Strength</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+            <tr>
+                <td><code>temporal_difference</code></td>
+                <td>0.9357</td>
+                <td>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar" style="width: 9.356998499450924%;"></div>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td><code>edge_density</code></td>
+                <td>0.7859</td>
+                <td>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar" style="width: 7.8589735108805865%;"></div>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td><code>laplacian_variance</code></td>
+                <td>0.4722</td>
+                <td>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar" style="width: 4.722492005633262%;"></div>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td><code>fft_low_ratio</code></td>
+                <td>0.2396</td>
+                <td>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar" style="width: 2.395914697417887%;"></div>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td><code>fft_high_ratio</code></td>
+                <td>0.0792</td>
+                <td>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar" style="width: 0.7924295416231469%;"></div>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td><code>shannon_entropy</code></td>
+                <td>0.0652</td>
+                <td>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar" style="width: 0.6517955489671136%;"></div>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td><code>log_total_energy</code></td>
+                <td>0.0510</td>
+                <td>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar" style="width: 0.5097130146166045%;"></div>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td><code>fft_mid_ratio</code></td>
+                <td>0.0048</td>
+                <td>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar" style="width: 0.047746573109682985%;"></div>
+                    </div>
+                </td>
+            </tr>
+            
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="card">
+            <h2>NORMAL vs. LENS_COVER</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 40%;">Feature</th>
+                        <th style="width: 20%;">Fisher Score</th>
+                        <th>Separability Strength</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+            <tr>
+                <td><code>fft_high_ratio</code></td>
+                <td>23.3164</td>
+                <td>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar" style="width: 100%;"></div>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td><code>edge_density</code></td>
+                <td>8.2253</td>
+                <td>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar" style="width: 82.25308458555823%;"></div>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td><code>laplacian_variance</code></td>
+                <td>2.7367</td>
+                <td>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar" style="width: 27.367157980428143%;"></div>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td><code>fft_mid_ratio</code></td>
+                <td>2.2753</td>
+                <td>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar" style="width: 22.752669872607278%;"></div>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td><code>fft_low_ratio</code></td>
+                <td>2.0307</td>
+                <td>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar" style="width: 20.307427042147566%;"></div>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td><code>shannon_entropy</code></td>
+                <td>0.9308</td>
+                <td>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar" style="width: 9.308402625018475%;"></div>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td><code>temporal_difference</code></td>
+                <td>0.1285</td>
+                <td>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar" style="width: 1.285033371919801%;"></div>
+                    </div>
+                </td>
+            </tr>
+            
+            <tr>
+                <td><code>log_total_energy</code></td>
+                <td>0.0000</td>
+                <td>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar" style="width: 1.0071296902929434e-06%;"></div>
+                    </div>
+                </td>
+            </tr>
+            
+                </tbody>
+            </table>
+        </div>
+        
+            
+            <div class="card">
+                <h2>Feature Correlation Matrix</h2>
+                <table style="width: 100%; table-layout: fixed;">
+                    <thead>
+                        <tr><th></th><th>fft_low_</th><th>fft_mid_</th><th>fft_high</th><th>log_tota</th><th>laplacia</th><th>edge_den</th><th>shannon_</th><th>temporal</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><strong>fft_low_ratio</strong></td><td style="background-color: rgba(56, 189, 248, 1.00); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">1.00</td><td style="background-color: rgba(239, 68, 68, 0.51); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">-0.51</td><td style="background-color: rgba(239, 68, 68, 0.68); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">-0.68</td><td style="background-color: rgba(56, 189, 248, 0.62); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.62</td><td style="background-color: rgba(56, 189, 248, 0.21); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.21</td><td style="background-color: rgba(56, 189, 248, 0.41); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.41</td><td style="background-color: rgba(56, 189, 248, 0.90); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.90</td><td style="background-color: rgba(56, 189, 248, 0.29); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.29</td></tr><tr><td><strong>fft_mid_ratio</strong></td><td style="background-color: rgba(239, 68, 68, 0.51); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">-0.51</td><td style="background-color: rgba(56, 189, 248, 1.00); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">1.00</td><td style="background-color: rgba(56, 189, 248, 0.82); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.82</td><td style="background-color: rgba(56, 189, 248, 0.35); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.35</td><td style="background-color: rgba(56, 189, 248, 0.18); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.18</td><td style="background-color: rgba(239, 68, 68, 0.05); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">-0.05</td><td style="background-color: rgba(239, 68, 68, 0.21); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">-0.21</td><td style="background-color: rgba(239, 68, 68, 0.13); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">-0.13</td></tr><tr><td><strong>fft_high_ratio</strong></td><td style="background-color: rgba(239, 68, 68, 0.68); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">-0.68</td><td style="background-color: rgba(56, 189, 248, 0.82); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.82</td><td style="background-color: rgba(56, 189, 248, 1.00); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">1.00</td><td style="background-color: rgba(56, 189, 248, 0.05); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.05</td><td style="background-color: rgba(239, 68, 68, 0.34); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">-0.34</td><td style="background-color: rgba(239, 68, 68, 0.55); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">-0.55</td><td style="background-color: rgba(239, 68, 68, 0.50); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">-0.50</td><td style="background-color: rgba(239, 68, 68, 0.20); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">-0.20</td></tr><tr><td><strong>log_total_energy</strong></td><td style="background-color: rgba(56, 189, 248, 0.62); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.62</td><td style="background-color: rgba(56, 189, 248, 0.35); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.35</td><td style="background-color: rgba(56, 189, 248, 0.05); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.05</td><td style="background-color: rgba(56, 189, 248, 1.00); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">1.00</td><td style="background-color: rgba(56, 189, 248, 0.34); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.34</td><td style="background-color: rgba(56, 189, 248, 0.34); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.34</td><td style="background-color: rgba(56, 189, 248, 0.78); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.78</td><td style="background-color: rgba(56, 189, 248, 0.16); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.16</td></tr><tr><td><strong>laplacian_variance</strong></td><td style="background-color: rgba(56, 189, 248, 0.21); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.21</td><td style="background-color: rgba(56, 189, 248, 0.18); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.18</td><td style="background-color: rgba(239, 68, 68, 0.34); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">-0.34</td><td style="background-color: rgba(56, 189, 248, 0.34); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.34</td><td style="background-color: rgba(56, 189, 248, 1.00); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">1.00</td><td style="background-color: rgba(56, 189, 248, 0.88); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.88</td><td style="background-color: rgba(56, 189, 248, 0.43); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.43</td><td style="background-color: rgba(56, 189, 248, 0.03); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.03</td></tr><tr><td><strong>edge_density</strong></td><td style="background-color: rgba(56, 189, 248, 0.41); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.41</td><td style="background-color: rgba(239, 68, 68, 0.05); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">-0.05</td><td style="background-color: rgba(239, 68, 68, 0.55); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">-0.55</td><td style="background-color: rgba(56, 189, 248, 0.34); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.34</td><td style="background-color: rgba(56, 189, 248, 0.88); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.88</td><td style="background-color: rgba(56, 189, 248, 1.00); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">1.00</td><td style="background-color: rgba(56, 189, 248, 0.52); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.52</td><td style="background-color: rgba(56, 189, 248, 0.14); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.14</td></tr><tr><td><strong>shannon_entropy</strong></td><td style="background-color: rgba(56, 189, 248, 0.90); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.90</td><td style="background-color: rgba(239, 68, 68, 0.21); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">-0.21</td><td style="background-color: rgba(239, 68, 68, 0.50); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">-0.50</td><td style="background-color: rgba(56, 189, 248, 0.78); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.78</td><td style="background-color: rgba(56, 189, 248, 0.43); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.43</td><td style="background-color: rgba(56, 189, 248, 0.52); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.52</td><td style="background-color: rgba(56, 189, 248, 1.00); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">1.00</td><td style="background-color: rgba(56, 189, 248, 0.30); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.30</td></tr><tr><td><strong>temporal_difference</strong></td><td style="background-color: rgba(56, 189, 248, 0.29); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.29</td><td style="background-color: rgba(239, 68, 68, 0.13); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">-0.13</td><td style="background-color: rgba(239, 68, 68, 0.20); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">-0.20</td><td style="background-color: rgba(56, 189, 248, 0.16); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.16</td><td style="background-color: rgba(56, 189, 248, 0.03); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.03</td><td style="background-color: rgba(56, 189, 248, 0.14); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.14</td><td style="background-color: rgba(56, 189, 248, 0.30); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">0.30</td><td style="background-color: rgba(56, 189, 248, 1.00); color: #fff; font-family: monospace; font-size: 0.85rem; text-align: center;">1.00</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

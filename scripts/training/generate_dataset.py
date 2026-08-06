@@ -46,10 +46,12 @@ def process_video(video_path: str, label: int, target_fps: float = 2.0, max_fram
     interval = max(1, int(round(fps / target_fps)))
     records = []
     
+    from training_v2.augmentation.augmentation import ImageAugmentor
+    augmentor = ImageAugmentor()
     prev_small = None
     frame_count = 0
     extracted_count = 0
-    
+
     while cap.isOpened():
         try:
             ret, frame = cap.read()
@@ -72,6 +74,8 @@ def process_video(video_path: str, label: int, target_fps: float = 2.0, max_fram
                     continue
             
             prev_small = small
+            
+            # Extract features for original frame
             feats = extractor.extract(frame)
             if not feats:
                 continue
@@ -79,6 +83,27 @@ def process_video(video_path: str, label: int, target_fps: float = 2.0, max_fram
             row = [feats.get(f, 0.0) for f in FEATURES] + [label]
             records.append(row)
             extracted_count += 1
+            
+            # If this is a normal/background video, synthesize matched tamper variants
+            if label == 0:
+                # 1. Simulate Hand Cover (glove/skin)
+                hand_img = augmentor.simulate_hand_cover(frame)
+                hand_feats = extractor.extract(hand_img)
+                if hand_feats:
+                    records.append([hand_feats.get(f, 0.0) for f in FEATURES] + [1])
+                    
+                # 2. Simulate Lens Cover (paper/blackout/fabric)
+                lens_img = augmentor.simulate_paper_cover(frame)
+                lens_feats = extractor.extract(lens_img)
+                if lens_feats:
+                    records.append([lens_feats.get(f, 0.0) for f in FEATURES] + [1])
+                    
+                # 3. Simulate Camera Moved
+                moved_img = augmentor.simulate_camera_moved(frame)
+                moved_feats = extractor.extract(moved_img)
+                if moved_feats:
+                    records.append([moved_feats.get(f, 0.0) for f in FEATURES] + [1])
+            
             if extracted_count >= max_frames:
                 break
             
