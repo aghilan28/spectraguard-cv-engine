@@ -403,7 +403,12 @@ class MainWindow(QMainWindow):
             self.frame_counter = 0
             self.last_status_text = "NORMAL"
             self.last_prob_text = " | Confidence: 100.0%"
-            
+
+            # Persist this camera (with the operator-given name) into the
+            # backend Camera Registry so the web dashboard lists it with the
+            # exact name entered in the connect panel template.
+            self._register_camera_with_backend(config, payload)
+
             # Start background Prediction Thread
             if self.model and self.scaler and self.feature_order:
                 self.predict_thread = PredictionThread(
@@ -417,6 +422,38 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Connection Failure", f"Error: {str(e)}")
             self._handle_disconnect()
+
+    def _register_camera_with_backend(self, config, payload: dict):
+        """
+        Push the connected camera (name, location, vendor, endpoint) into the
+        CV Engine backend registry. Non-fatal: the GUI keeps working even if
+        the API is not reachable yet (e.g. backend not started).
+        """
+        import urllib.request
+        register_body = {
+            "name": getattr(config, "name", payload.get("name", "Unnamed Camera")),
+            "location": payload.get("zone") or payload.get("location") or "Unassigned Zone",
+            "vendor": payload.get("vendor", "generic"),
+            "ip_address": payload.get("ip_address", ""),
+            "port": int(payload.get("port", 554)),
+            "source": payload.get("ip_address", "0"),
+            "status": "online",
+            "username": payload.get("username", ""),
+        }
+        api_base = os.environ.get("SPECTRAGUARD_API_URL", "http://localhost:8080/api/v1").rstrip("/")
+        url = f"{api_base}/cameras/register"
+        try:
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(register_body).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=2.5) as resp:
+                body = resp.read().decode("utf-8", errors="ignore")
+                print(f"[CameraRegistry] Registered '{register_body['name']}' -> {body[:120]}")
+        except Exception as exc:
+            print(f"[CameraRegistry] Backend registration skipped (API offline?): {exc}")
 
     def _handle_prediction_update(self, result: dict):
         """Processes outputs from the background PredictionThread."""

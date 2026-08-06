@@ -1,4 +1,4 @@
-﻿from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager
 from typing import AsyncGenerator, Any
 
 from fastapi import FastAPI, Request
@@ -16,7 +16,7 @@ from backend.core.constants import (
     MSG_NOT_FOUND, MSG_INTERNAL_ERROR, MSG_VALIDATION_ERROR
 )
 
-from backend.api.v1.routes import health, system, camera, inference, calibration, baseline, deviation, tamper, realtime
+from backend.api.v1.routes import health, system, camera, cameras, inference, calibration, baseline, deviation, tamper, realtime
 from backend.api.v1.websocket import live_stream
 
 @asynccontextmanager
@@ -87,6 +87,7 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
 app.include_router(health.router, prefix=API_PREFIX)
 app.include_router(system.router, prefix=API_PREFIX)
 app.include_router(camera.router, prefix=API_PREFIX)
+app.include_router(cameras.router, prefix=API_PREFIX)
 app.include_router(inference.router, prefix=API_PREFIX)
 app.include_router(calibration.router, prefix=API_PREFIX)
 app.include_router(baseline.router, prefix=API_PREFIX)
